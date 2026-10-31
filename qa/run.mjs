@@ -160,6 +160,17 @@ try {
   });
   check("間違えるとしおりの力が0に戻る（直す2→間違い→直す2では大技なし、3つ目で出る）", resetSeq === "-,-,-,-,-,大技", resetSeq);
 
+  // 4c. 大技の名前（乱数）：まだ技を覚えていない巻では、覚えた技の中から選ぶ。300回作って毎回確かめる
+  const tech = await page.evaluate(() => {
+    const xs = learned(), keep = JSON.stringify(mem);
+    const other = Array.from({ length: 300 }, () => techFor(BOOKS[2]));
+    const own = techFor(BOOKS[0]);
+    mem.solved = {}; const none = techFor(BOOKS[2]); mem = JSON.parse(keep);
+    return { xs, bad: other.filter((x) => !xs.includes(x)), kinds: new Set(other).size, own, none };
+  });
+  check("覚えていない巻の大技は、覚えた技から選ぶ（300回）", tech.xs.length >= 2 && !tech.xs.includes("戒めの鎖") && tech.bad.length === 0 && tech.kinds === tech.xs.length, JSON.stringify(tech));
+  check("覚えた巻の大技はその巻の技、何も覚えていなければ「しおりの灯」", tech.own === "礎の灯" && tech.none === "しおりの灯", JSON.stringify(tech));
+
   // 5. 記録はこの端末にだけ残り、開き直しても消えない
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem(KEY) || "{}"));
   check("直したページが記録される", Object.keys(saved.solved || {}).length === 20, Object.keys(saved.solved || {}).length + "ページ");
