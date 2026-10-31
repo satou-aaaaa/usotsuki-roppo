@@ -1,0 +1,42 @@
+name: QA
+
+# 見本の話と遊び方を、ブラウザで自動で遊んで確かめる（Claude は使わない）。
+# 落ちたら qa-report/report.md を見る。手元では node qa/run.mjs で同じものが回る。
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qa:
+    name: qa
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: qa/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: qa
+      - run: npx playwright install --with-deps chromium
+        working-directory: qa
+      - run: node qa/run.mjs
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-report
+          path: qa-report/
+          if-no-files-found: ignore

@@ -1,0 +1,228 @@
+<title>うそつき六法</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kaisei+Decol:wght@700&family=Zen+Kaku+Gothic+New:wght@400;700&display=swap">
+<style>
+/* 夜の村：上に村の札、村人4人のせりふを縦に並べ、各人に「ヒント」と「正しい／間違い」。条文は答え合わせで出す */
+:root{
+  --bg:#efe9dc; --panel:#fbf7ee; --ink:#26222b; --muted:#6a6170;
+  --night:#2e3359; --lamp:#c27a1c; --line:#d6ccb8; --wolf:#a8322a; --safe:#2f6e4f;
+  --display:"Kaisei Decol","Hiragino Mincho ProN","Yu Mincho",serif;
+  --body:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#16182a; --panel:#212439; --ink:#ece6da; --muted:#a9a3b5;
+  --night:#9aa3e6; --lamp:#e8a44a; --line:#363a57; --wolf:#ee7d70; --safe:#72c79a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#16182a; --panel:#212439; --ink:#ece6da; --muted:#a9a3b5;
+  --night:#9aa3e6; --lamp:#e8a44a; --line:#363a57; --wolf:#ee7d70; --safe:#72c79a; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.7}
+.wrap{max-width:680px;margin:0 auto;padding-block:20px 40px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:grid;gap:16px}
+header{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--display);font-size:clamp(28px,7vw,40px);margin:0;line-height:1.15;color:var(--night);letter-spacing:.05em}
+.sub{margin:0;color:var(--muted);font-size:13px}
+.stat{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.stat b{font-family:var(--display);font-size:20px;color:var(--lamp)}
+.village{background:var(--night);color:#f4efe4;border-radius:14px;padding:14px 16px;display:grid;gap:4px}
+.village h2{font-family:var(--display);font-size:20px;margin:0}
+.village p{margin:0;font-size:13px;opacity:.85}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .village{color:var(--bg)}}
+:root[data-theme="dark"] .village{color:var(--bg)}
+.people{display:grid;gap:10px}
+.person{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;grid-template-columns:44px 1fr;gap:4px 12px;align-items:start}
+.face{grid-row:span 3;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-size:18px;background:var(--bg);border:2px solid var(--line)}
+.name{font-size:12px;color:var(--muted)}
+.say{font-size:16px;font-weight:700;min-width:0}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.b{all:unset;cursor:pointer;font-size:13px;padding:5px 12px;border-radius:999px;border:1px solid var(--line)}
+.b:focus-visible{outline:3px solid var(--lamp);outline-offset:2px}
+.b.vote.ok[aria-pressed="true"]{background:var(--safe);border-color:var(--safe);color:var(--panel);font-weight:700}
+.b.vote[aria-pressed="true"]{background:var(--wolf);border-color:var(--wolf);color:var(--panel);font-weight:700}
+.b[disabled]{opacity:.4;cursor:default}
+.law{grid-column:2;font-size:13px;background:var(--bg);border-left:3px solid var(--lamp);padding:6px 10px;margin:4px 0 0}
+.person.wolf{border:2px solid var(--wolf)}
+.person.wolf .face{border-color:var(--wolf);color:var(--wolf)}
+.person.safe .face{border-color:var(--safe);color:var(--safe)}
+.tag{font-size:12px;font-weight:700}
+.tag.w{color:var(--wolf)} .tag.s{color:var(--safe)}
+.bar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.go{all:unset;cursor:pointer;background:var(--lamp);color:var(--panel);font-weight:700;padding:10px 20px;border-radius:999px}
+.go[disabled]{opacity:.45;cursor:default}
+.go:focus-visible{outline:3px solid var(--night);outline-offset:2px}
+.msg{font-size:13px;color:var(--muted)}
+[hidden]{display:none!important}
+.result{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:grid;gap:6px}
+.result h3{font-family:var(--display);margin:0;font-size:20px}
+.note{font-size:12px;color:var(--muted);margin:0}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>うそつき六法</h1>
+      <p class="sub">村人の話す法律は、正しい？ 間違い？ 一晩に5つの村をまわる</p>
+    </div>
+    <div class="stat">見分けた <b id="saved">0</b> / <span id="tot">0</span></div>
+  </header>
+
+  <section class="village" aria-live="polite">
+    <h2 id="vname"></h2>
+    <p id="vinfo"></p>
+  </section>
+
+  <section class="people" id="people"></section>
+
+  <div class="bar" hidden>
+    <span class="msg" id="msg"></span>
+    <button class="go" id="go" disabled>答え合わせ</button>
+  </div>
+
+  <section class="result" id="result" hidden></section>
+
+  <p class="note">村人の話と条文は「<a href="https://satou-aaaaa.github.io/tenbin/">天秤の書</a>」で一次資料と照らし合わせた問題・解説を、短く言い換えたものです（全36話）。村の4人を全部見分けると次の村は難しく、半分以下なら易しくなります。見誤った話は翌日以降の村にまた出ます（記録はこの端末のブラウザだけ）。法律相談ではありません。</p>
+</div>
+
+<script>
+// 話の一覧。lv=1 基本・2 ふつう・3 紛らわしい。ok=true が正しい話。内容は「天秤の書」で一次資料と照合済みの問題・解説から作った
+const TALKS = [
+ {id:"e1",lv:1,ok:true, say:"今の日本の成年は18歳だよ。", law:"民法4条：年齢18歳をもって、成年とする。", why:"正しい。2022年4月から18歳。"},
+ {id:"e2",lv:1,ok:false,say:"契約は、契約書を作らないと成立しないんだ。", law:"民法522条：契約は申込みと承諾の合致で成立し、原則として書面は要らない（2項）。", why:"間違い。口約束でも原則成立する。保証契約など書面が要る例外はある。"},
+ {id:"e3",lv:1,ok:true, say:"心神喪失の人がした行為は、罰せられない。", law:"刑法39条1項：心神喪失者の行為は、罰しない。", why:"正しい。"},
+ {id:"e4",lv:1,ok:true, say:"17歳が親の同意なしでした契約は、原則、取り消せるわ。", law:"民法5条：未成年者が法定代理人の同意を得ないでした法律行為は、取り消すことができる（1項・2項）。ただし処分を許された財産（おこづかい等）の範囲なら自由にできる（3項）。", why:"正しい。17歳は未成年者。おこづかいの範囲の買い物などは例外。"},
+ {id:"e5",lv:1,ok:true, say:"おどされてした契約は、取り消せるよ。", law:"民法96条1項：詐欺又は強迫による意思表示は、取り消すことができる。", why:"正しい。"},
+ {id:"e6",lv:1,ok:true, say:"人をだまして品物を渡させたら、詐欺罪だ。", law:"刑法246条1項：人を欺いて財物を交付させた者は、詐欺罪。", why:"正しい。"},
+ {id:"e7",lv:1,ok:false,say:"衆議院議員の任期は6年だ。", law:"憲法45条・46条：衆議院議員の任期は4年（解散あり）。参議院議員は6年。", why:"間違い。6年は参議院。"},
+ {id:"e8",lv:1,ok:true, say:"天皇の国事行為には、内閣の助言と承認が要る。", law:"憲法3条：天皇の国事に関するすべての行為には、内閣の助言と承認を必要とする。", why:"正しい。"},
+ {id:"e9",lv:1,ok:true, say:"逮捕された人は、弁護人を頼む権利がある。", law:"憲法34条・刑事訴訟法30条：弁護人に依頼する権利。", why:"正しい。"},
+ {id:"e10",lv:1,ok:false,say:"法律で犯罪と決まっていなくても、悪いことなら罰せられる。", law:"憲法31条・39条：あらかじめ法律で犯罪と定められていなければ処罰されない（罪刑法定主義）。", why:"間違い。"},
+ {id:"e11",lv:1,ok:true, say:"大事な勘違いでした契約は、原則、取り消せるんだ。", law:"民法95条：重要な錯誤による意思表示は、取り消すことができる（1項）。動機の錯誤は、その事情が表示されていたときに限る（2項）。表意者に重大な過失があれば、相手方が知っていた場合などを除き取り消せない（3項）。", why:"正しい。ただし、動機の勘違いは相手に示していたときだけ。ひどい不注意の勘違いも原則だめ。2020年の改正前は「無効」だった。"},
+ {id:"e12",lv:1,ok:true, say:"急に殴られかけて、やむを得ず身を守るのは、罰せられない。", law:"刑法36条：急迫不正の侵害に対し、権利を防衛するため、やむを得ずにした行為は、罰しない（1項）。防衛の程度を超えた行為は、刑を減軽・免除できる（2項）。", why:"正しい。正当防衛。やりすぎ（過剰防衛）は罰せられることがある。"},
+ {id:"m1",lv:2,ok:false,say:"見せかけの契約の無効は、事情を知らない人にも言える。", law:"民法94条：相手方と通じた虚偽の意思表示は無効。その無効は善意の第三者に対抗できない（2項）。", why:"間違い。事情を知らない（善意の）第三者には言えない。"},
+ {id:"m2",lv:2,ok:true, say:"持ち主でない人から買った絵も、知らずに落ち度なく受け取れば自分のもの。", law:"民法192条：取引で、平穏・公然・善意・無過失に動産の占有を始めた者は、所有権を取得する。", why:"正しい。即時取得。"},
+ {id:"m3",lv:2,ok:false,say:"身を守るためなら、やりすぎても必ず無罪だ。", law:"刑法36条2項：防衛の程度を超えた行為は、情状により、刑を減軽し、又は免除することができる。", why:"間違い。過剰防衛は刑が軽くなる・免除されることがあるだけ。"},
+ {id:"m4",lv:2,ok:false,say:"心神耗弱の人がした行為は、罰せられない。", law:"刑法39条：心神喪失者の行為は罰しない（1項）。心神耗弱者の行為は刑を減軽する（2項）。", why:"間違い。罰しないのは心神喪失。心神耗弱は刑が軽くなる。"},
+ {id:"m5",lv:2,ok:false,say:"犯罪の未遂は、どの犯罪でも罰せられる。", law:"刑法44条：未遂を罰する場合は、各本条で定める。", why:"間違い。未遂を罰するのは、条文で特に定めた犯罪だけ。"},
+ {id:"m6",lv:2,ok:false,say:"法律が憲法に反するか決められるのは、最高裁だけだ。", law:"憲法81条・最大判昭和25年2月1日：最高裁は終審裁判所。下級裁判所も違憲審査権を持つ。", why:"間違い。地方裁判所なども判断できる。"},
+ {id:"m7",lv:2,ok:false,say:"取り消した契約は、取り消した時から先だけ効力を失う。", law:"民法121条：取り消された行為は、初めから無効であったものとみなす。", why:"間違い。初めにさかのぼって無効になる。"},
+ {id:"m8",lv:2,ok:true, say:"今の民法では、婚外子の相続分は、嫡出子と同じだ。", law:"民法900条4号：嫡出でない子の相続分も、嫡出子と同じ。", why:"正しい。"},
+ {id:"m9",lv:2,ok:true, say:"2025年6月から、懲役と禁錮は「拘禁刑」にまとまった。", law:"刑法9条・12条：拘禁刑。", why:"正しい。"},
+ {id:"m10",lv:2,ok:false,say:"遺言は、18歳にならないとできない。", law:"民法961条・962条：15歳に達した者は遺言をすることができる。親の同意も要らない。", why:"間違い。15歳からできる。"},
+ {id:"m11",lv:2,ok:false,say:"ネット通販で買った物も、クーリング・オフで返せる。", law:"特定商取引法15条の3：通信販売にクーリング・オフは無い。返品はお店の返品特約による（特約が無ければ8日以内）。", why:"間違い。"},
+ {id:"m12",lv:2,ok:true, say:"自分に不利なことを、無理に言わされることはない。", law:"憲法38条1項：何人も、自己に不利益な供述を強要されない。", why:"正しい。"},
+ {id:"h1",lv:3,ok:true, say:"だまされた取消しは、知らず落ち度もない人には言えない。", law:"民法96条3項：詐欺による取消しは、善意でかつ過失がない第三者に対抗できない。", why:"正しい。"},
+ {id:"h2",lv:3,ok:false,say:"おどされた取消しも、知らず落ち度もない人には言えない。", law:"民法96条：第三者を守る定め（3項）は詐欺だけ。強迫の取消しは善意無過失の第三者にも対抗できる。", why:"間違い。強迫なら第三者にも言える。"},
+ {id:"h3",lv:3,ok:false,say:"いやがらせ目的でも、先に登記すれば土地はこっちの勝ちだ。", law:"民法177条・最判昭和43年8月2日：信義に反する背信的悪意者は「第三者」に当たらない。", why:"間違い。背信的悪意者は登記を先にしても勝てない。"},
+ {id:"h4",lv:3,ok:true, say:"冗談の約束でも、相手が冗談だと気づけたなら無効じゃ。", law:"民法93条1項：真意でない意思表示も有効。ただし相手方が知り、又は知ることができたときは無効。", why:"正しい。「知ることができた」でも無効。"},
+ {id:"h5",lv:3,ok:false,say:"勘違いに大きな落ち度があれば、相手が知っていても取り消せない。", law:"民法95条3項：重大な過失があっても、相手方が錯誤を知り、又は重大な過失で知らなかったときなどは取り消せる。", why:"間違い。相手が知っていれば取り消せる。"},
+ {id:"h6",lv:3,ok:true, say:"ほかの人にだまされた契約は、相手がそれを知り得たなら取り消せる。", law:"民法96条2項：第三者が詐欺を行ったときは、相手方がその事実を知り、又は知ることができたときに限り、取り消せる。", why:"正しい。"},
+ {id:"h7",lv:3,ok:false,say:"犯罪の証明がないとき、裁判所は公訴棄却を言い渡す。", law:"刑事訴訟法336条：犯罪の証明がないときは、無罪の言渡しをしなければならない。", why:"間違い。無罪。公訴棄却は起訴の手続が無効な場合などの形式的な裁判。"},
+ {id:"h8",lv:3,ok:false,say:"違法な捜査で集めた証拠は、軽い違法でも必ず使えない。", law:"最判昭和53年9月7日：令状主義の精神を没却する重大な違法があり、証拠とすることが相当でないときに排除する。", why:"間違い。重大な違法のときに使えなくなる。"},
+ {id:"h9",lv:3,ok:true, say:"行政指導に従わないからといって、不利に扱ってはいけない。", law:"行政手続法32条2項：行政指導に従わなかったことを理由として、不利益な取扱いをしてはならない。", why:"正しい。"},
+ {id:"h10",lv:3,ok:false,say:"詐欺の取消しから守られる第三者は、知らなかっただけの人で足りる。", law:"民法96条3項：善意でかつ過失がない第三者（2020年の改正で「善意」から変わった）。", why:"間違い。知らなかったことに落ち度もないことが要る。"},
+ {id:"h11",lv:3,ok:true, say:"勘違いの取消しも、知らず落ち度もない第三者には言えない。", law:"民法95条4項：錯誤による取消しは、善意でかつ過失がない第三者に対抗できない。", why:"正しい。"},
+ {id:"h12",lv:3,ok:false,say:"見せかけの契約の第三者は、知らないことに落ち度もあってはならない。", law:"民法94条2項：虚偽表示の無効は、善意の第三者に対抗できない（無過失までは要らない）。", why:"間違い。見せかけ（虚偽表示）は「善意」だけで足りる。"}
+];
+
+const NAMES=["村長","パン屋","猟師","郵便屋","仕立て屋","古道具屋","地主","大工","番人","鍛冶屋","薬師","商人","粉屋","船頭","庭師","学者"];
+const LVNAME=["","やさしい","ふつう","むずかしい"], PER=4, NIGHT=5, KEY="roppo-village-v1", DAY=86400000;
+const byId={}; TALKS.forEach(t=>byId[t.id]=t);
+function load(){ try{ return JSON.parse(localStorage.getItem(KEY))||{}; }catch(e){ return {}; } }
+function save(m){ try{ localStorage.setItem(KEY,JSON.stringify(m)); }catch(e){} }
+function today(){ const d=new Date(); d.setHours(0,0,0,0); return d.getTime(); }
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+let level=1, nightNo=0, used=new Set(), usedDay=0, people=[], hint=false, marks={}, done=false, right=0, total=0, vno=0;
+const $=id=>document.getElementById(id);
+
+function makeVillage(){
+  const mem=load(), t=today();
+  // 日付が変わったら、きのう出た話も選べるようにする（同じタブで翌日も遊んだとき、復習が出なくなるのを防ぐ）
+  if(usedDay!==t){ used=new Set(); usedDay=t; }
+  const notDue=id=>mem[id]>t; // 見誤って、まだ復習の日が来ていない話
+  // 見誤った話のうち、出す日が来たものを1つまぜる
+  const review=Object.keys(mem).filter(id=>byId[id] && mem[id]<=t && !used.has(id));
+  let pick=[];
+  if(review.length) pick.push(byId[shuffle(review)[0]]);
+  // まだ出ていない話から選ぶ。正しい話・間違った話の両方が入る組が作れなければ、同じ段の全部から選び直す。
+  // それでも作れなければ（段に片方しか残っていないとき）、偏りは許して必ず4人そろえる
+  const fresh=TALKS.filter(x=>x.lv===level && !used.has(x.id) && !notDue(x.id) && !pick.includes(x));
+  const due=TALKS.filter(x=>x.lv===level && !notDue(x.id) && !pick.includes(x));
+  const all=TALKS.filter(x=>x.lv===level && !pick.includes(x));
+  let chosen=null;
+  for(const pool of [fresh, due, all]){
+    if(pool.length < PER-pick.length) continue;
+    for(let tries=0; tries<40 && !chosen; tries++){
+      const cand=pick.concat(shuffle(pool.slice()).slice(0,PER-pick.length));
+      const nf=cand.filter(x=>!x.ok).length;
+      if(nf>=1 && nf<=3) chosen=cand;
+    }
+    if(chosen) break;
+  }
+  pick = chosen || pick.concat(shuffle(all.slice()).slice(0,PER-pick.length));
+  pick=shuffle(pick); pick.forEach(x=>used.add(x.id));
+  const names=shuffle(NAMES.slice());
+  people=pick.map((x,k)=>({...x, n:names[k], f:names[k][0]}));
+  hint=false; marks={}; done=false; vno++;
+}
+let cur=0, got=0;
+function render(){
+  const p=people[cur];
+  $("vname").textContent="第"+vno+"の村　"+"★".repeat(level)+"☆".repeat(3-level)+" "+LVNAME[level];
+  $("vinfo").textContent="村人 "+(cur+1)+" / "+people.length+" 人目　"+"●".repeat(cur)+"○".repeat(people.length-cur);
+  $("result").hidden=true; $("go").hidden=true;
+  const box=$("people"); box.innerHTML="";
+  const el=document.createElement("article"); el.className="person"; el.id="p0";
+  const ans=marks[cur];
+  const ok = ans!==undefined && ((ans==="o")===p.ok);
+  if(ans!==undefined) el.classList.add(p.ok?"safe":"wolf");
+  let h='<div class="face">'+p.f+'</div><div class="name">'+p.n+
+    (ans!==undefined?' <span class="tag '+(p.ok?'s">正しい':'w">間違い')+'</span> <span class="tag">'+(ok?'○ 見分けた':'× 見誤った')+'</span>':'')+'</div>'+
+    '<div class="say">「'+p.say+'」</div>';
+  if(ans===undefined){
+    h+='<div class="acts"><button class="b vote ok" data-m="o">正しい</button><button class="b vote" data-m="x">間違い</button>'+
+       '<button class="b flip"'+(hint!==false?' disabled':'')+'>ヒント（この村で1回）</button></div>';
+    if(hint===cur) h+='<p class="law">ヒント：'+p.law.split('：')[0]+' に関係する話</p>';
+  } else {
+    h+='<p class="law">'+p.law+'</p><p class="law" style="border-left-color:var(--'+(p.ok?'safe':'wolf')+')">'+p.why+'</p>';
+  }
+  el.innerHTML=h; box.appendChild(el);
+  const f=box.querySelector(".flip"); if(f) f.addEventListener("click",()=>{ hint=cur; render(); });
+  box.querySelectorAll(".vote").forEach(x=>x.addEventListener("click",()=>answer(x.dataset.m)));
+  $("msg").textContent="";
+  if(ans!==undefined){
+    const res=$("result"); res.hidden=false;
+    const lastP=cur>=people.length-1;
+    res.innerHTML='<button class="go" id="next">'+(lastP?"この村のまとめへ":"次の村人へ")+'</button>';
+    $("next").addEventListener("click",()=>{ if(lastP) summary(); else { cur++; render(); } });
+    $("next").focus();
+  }
+}
+function answer(m){
+  const p=people[cur]; marks[cur]=m;
+  const ok=(m==="o")===p.ok, mem=load();
+  if(ok){ got++; delete mem[p.id]; } else mem[p.id]=today()+DAY;
+  save(mem); right+=ok?1:0; total++; $("saved").textContent=right; $("tot").textContent=total;
+  render();
+}
+function summary(){
+  const before=level;
+  if(got===people.length) level=Math.min(3,level+1); else if(got<=people.length/2) level=Math.max(1,level-1);
+  const last=vno>=NIGHT;
+  const move= level>before?"次の村は少し難しくなる。": level<before?"次の村は少し易しくなる。":"次の村も同じくらいの難しさ。";
+  $("people").innerHTML=""; $("vinfo").textContent="";
+  const res=$("result"); res.hidden=false;
+  res.innerHTML='<h3>'+(got===people.length?"この村の話を全部見分けた！":people.length+"人中 "+got+"人 見分けた")+'</h3>'+
+    '<p class="msg">'+(last?"今夜はここまで。正解率 "+Math.round(right/total*100)+"%（8〜9割がちょうどよい難しさ）。":move)+'</p>'+
+    '<button class="go" id="next">'+(last?"次の夜へ":"次の村へ")+'</button>';
+  $("next").addEventListener("click",()=>{
+    if(last){ vno=0; right=0; total=0; $("saved").textContent=0; $("tot").textContent=0; }
+    makeVillage(); cur=0; got=0; render(); window.scrollTo(0,0);
+  });
+  $("next").focus();
+}
+makeVillage(); render();
+</script>

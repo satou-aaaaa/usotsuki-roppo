@@ -1,0 +1,17 @@
+# 依存の更新 PR を月1回まとめて出す。数を増やしすぎないよう、同時に開くのは2本まで。
+version: 2
+updates:
+  # ワークフローの Actions（共通部品 shared-workflows の呼び出しは @main なので対象外）
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    groups:
+      actions:
+        patterns: ["*"]
+  # npm を使うときだけ残す（directory はリポジトリに合わせる）
+  - package-ecosystem: "npm"
+    directory: "/qa"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 2
