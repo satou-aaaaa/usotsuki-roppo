@@ -84,6 +84,12 @@ try {
   const mem = await page.evaluate(() => JSON.parse(localStorage.getItem("roppo-village-v1") || "{}"));
   check("見誤った話が記録される", Object.keys(mem).length >= 1, Object.keys(mem).join(","));
 
+  // 4b. 応援のリンク：Ko-fi へのただのリンクだけ（外のスクリプトを読まず、遊ぶ人の記録を外へ送らない）
+  const kofi = await page.locator("#kofi").evaluate((a) => ({ href: a.href, rel: a.rel })).catch(() => null);
+  check("応援のリンクが Ko-fi のページを指す", kofi && kofi.href === "https://ko-fi.com/satouaaaaa", kofi?.href || "無い");
+  check("応援のリンクは noopener つき", kofi && kofi.rel.includes("noopener"));
+  check("外のスクリプトを読まない", (await page.locator("script[src]").count()) === 0);
+
   // 5. スマホ幅で横にはみ出さない・エラーが出ない
   check("スマホ幅で横にはみ出さない", (await page.evaluate(() => document.documentElement.scrollWidth)) <= 390);
   check("ページのエラーが無い", errors.length === 0, errors.join(" / "));
