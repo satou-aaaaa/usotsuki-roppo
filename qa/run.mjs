@@ -40,6 +40,22 @@ try {
   check("村を900回作っても毎回4人そろう", short.length === 0, short.slice(0, 3).map((b) => b.msg).join(" / "));
   check("村には正しい話と間違った話が両方入る（900回のうち95%以上）", skew.length <= 45, `${skew.length}回 偏った`);
 
+  // 1c. 復習：見誤った話は出す日まで出さない・日付が変わったら前の日に出た話も復習に出す（2026-10-31 CodeRabbit の指摘）
+  const rv = await page.evaluate(() => {
+    const keep = { level, used: new Set(used), usedDay, vno, mem: localStorage.getItem(KEY) };
+    const t = today(), wait = ["e2", "e7"]; const m = {}; wait.forEach((id) => (m[id] = t + DAY)); localStorage.setItem(KEY, JSON.stringify(m));
+    let early = 0, short = 0; level = 1;
+    for (let i = 0; i < 300; i++) { used = new Set(); makeVillage(); if (people.some((p) => wait.includes(p.id))) early++; if (people.length !== PER) short++; }
+    localStorage.setItem(KEY, JSON.stringify({ e1: t - DAY })); used = new Set(["e1"]); usedDay = t - DAY; makeVillage();
+    const nextDay = people.some((p) => p.id === "e1");
+    level = keep.level; used = keep.used; usedDay = keep.usedDay; vno = keep.vno;
+    if (keep.mem === null) localStorage.removeItem(KEY); else localStorage.setItem(KEY, keep.mem);
+    makeVillage(); render(); return { early, short, nextDay };
+  });
+  check("見誤った話は出す日まで出ない（300回）", rv.early === 0 && rv.short === 0, `早く出た${rv.early}回・4人未満${rv.short}回`);
+  check("日付が変わると、前の日に出た話も復習に出る", rv.nextDay);
+  check("スマホ用の viewport がある", await page.evaluate(() => (document.querySelector('meta[name="viewport"]')?.content || "").includes("width=device-width")));
+
   // 2. 一問ずつ出る・ヒントは番号だけ・答えると条文が出る
   check("村人は1人ずつ出る", (await page.locator(".person").count()) === 1);
   await page.click(".flip");
@@ -59,6 +75,7 @@ try {
       await page.click("#next");
     }
     await page.click("#next");
+    if (v === 0) check("次の村へ進むと、前の村のまとめは消える", await page.locator("#result").isHidden());
   }
   check("全問正解で次の村が難しくなる", levels[0].includes("★☆☆") && levels[1].includes("★★☆") && levels[2].includes("★★★"), levels.join(" / "));
   check("全問誤りで次の村が易しくなる", levels[3].includes("★★☆"), levels[3]);

@@ -1,4 +1,5 @@
 <title>うそつき六法</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kaisei+Decol:wght@700&family=Zen+Kaku+Gothic+New:wght@400;700&display=swap">
@@ -53,6 +54,7 @@ h1{font-family:var(--display);font-size:clamp(28px,7vw,40px);margin:0;line-heigh
 .go[disabled]{opacity:.45;cursor:default}
 .go:focus-visible{outline:3px solid var(--night);outline-offset:2px}
 .msg{font-size:13px;color:var(--muted)}
+[hidden]{display:none!important}
 .result{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:grid;gap:6px}
 .result h3{font-family:var(--display);margin:0;font-size:20px}
 .note{font-size:12px;color:var(--muted);margin:0}
@@ -90,15 +92,15 @@ const TALKS = [
  {id:"e1",lv:1,ok:true, say:"今の日本の成年は18歳だよ。", law:"民法4条：年齢18歳をもって、成年とする。", why:"正しい。2022年4月から18歳。"},
  {id:"e2",lv:1,ok:false,say:"契約は、契約書を作らないと成立しないんだ。", law:"民法522条：契約は申込みと承諾の合致で成立し、原則として書面は要らない（2項）。", why:"間違い。口約束でも原則成立する。保証契約など書面が要る例外はある。"},
  {id:"e3",lv:1,ok:true, say:"心神喪失の人がした行為は、罰せられない。", law:"刑法39条1項：心神喪失者の行為は、罰しない。", why:"正しい。"},
- {id:"e4",lv:1,ok:true, say:"17歳が親の同意なしでした契約は、取り消せるわ。", law:"民法5条：未成年者が法定代理人の同意を得ないでした法律行為は、取り消すことができる。", why:"正しい。17歳は未成年者。"},
+ {id:"e4",lv:1,ok:true, say:"17歳が親の同意なしでした契約は、原則、取り消せるわ。", law:"民法5条：未成年者が法定代理人の同意を得ないでした法律行為は、取り消すことができる（1項・2項）。ただし処分を許された財産（おこづかい等）の範囲なら自由にできる（3項）。", why:"正しい。17歳は未成年者。おこづかいの範囲の買い物などは例外。"},
  {id:"e5",lv:1,ok:true, say:"おどされてした契約は、取り消せるよ。", law:"民法96条1項：詐欺又は強迫による意思表示は、取り消すことができる。", why:"正しい。"},
  {id:"e6",lv:1,ok:true, say:"人をだまして品物を渡させたら、詐欺罪だ。", law:"刑法246条1項：人を欺いて財物を交付させた者は、詐欺罪。", why:"正しい。"},
  {id:"e7",lv:1,ok:false,say:"衆議院議員の任期は6年だ。", law:"憲法45条・46条：衆議院議員の任期は4年（解散あり）。参議院議員は6年。", why:"間違い。6年は参議院。"},
  {id:"e8",lv:1,ok:true, say:"天皇の国事行為には、内閣の助言と承認が要る。", law:"憲法3条：天皇の国事に関するすべての行為には、内閣の助言と承認を必要とする。", why:"正しい。"},
  {id:"e9",lv:1,ok:true, say:"逮捕された人は、弁護人を頼む権利がある。", law:"憲法34条・刑事訴訟法30条：弁護人に依頼する権利。", why:"正しい。"},
  {id:"e10",lv:1,ok:false,say:"法律で犯罪と決まっていなくても、悪いことなら罰せられる。", law:"憲法31条・39条：あらかじめ法律で犯罪と定められていなければ処罰されない（罪刑法定主義）。", why:"間違い。"},
- {id:"e11",lv:1,ok:true, say:"大事な勘違いでした契約は、取り消せるんだ。", law:"民法95条1項：重要な錯誤による意思表示は、取り消すことができる。", why:"正しい。2020年の改正前は「無効」だった。"},
- {id:"e12",lv:1,ok:true, say:"急に殴られかけて身を守るのは、罰せられない。", law:"刑法36条1項：急迫不正の侵害に対し、権利を防衛するため、やむを得ずにした行為は、罰しない。", why:"正しい。正当防衛。"},
+ {id:"e11",lv:1,ok:true, say:"大事な勘違いでした契約は、原則、取り消せるんだ。", law:"民法95条：重要な錯誤による意思表示は、取り消すことができる（1項）。ただし表意者に重大な過失があれば、相手方が知っていた場合などを除き取り消せない（3項）。", why:"正しい。ひどい不注意の勘違いは例外。2020年の改正前は「無効」だった。"},
+ {id:"e12",lv:1,ok:true, say:"急に殴られかけて、やむを得ず身を守るのは、罰せられない。", law:"刑法36条：急迫不正の侵害に対し、権利を防衛するため、やむを得ずにした行為は、罰しない（1項）。防衛の程度を超えた行為は、刑を減軽・免除できる（2項）。", why:"正しい。正当防衛。やりすぎ（過剰防衛）は罰せられることがある。"},
  {id:"m1",lv:2,ok:false,say:"見せかけの契約の無効は、事情を知らない人にも言える。", law:"民法94条：相手方と通じた虚偽の意思表示は無効。その無効は善意の第三者に対抗できない（2項）。", why:"間違い。事情を知らない（善意の）第三者には言えない。"},
  {id:"m2",lv:2,ok:true, say:"持ち主でない人から買った絵も、知らずに落ち度なく受け取れば自分のもの。", law:"民法192条：取引で、平穏・公然・善意・無過失に動産の占有を始めた者は、所有権を取得する。", why:"正しい。即時取得。"},
  {id:"m3",lv:2,ok:false,say:"身を守るためなら、やりすぎても必ず無罪だ。", law:"刑法36条2項：防衛の程度を超えた行為は、情状により、刑を減軽し、又は免除することができる。", why:"間違い。過剰防衛は刑が軽くなる・免除されることがあるだけ。"},
@@ -133,21 +135,25 @@ function save(m){ try{ localStorage.setItem(KEY,JSON.stringify(m)); }catch(e){} 
 function today(){ const d=new Date(); d.setHours(0,0,0,0); return d.getTime(); }
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 
-let level=1, nightNo=0, used=new Set(), people=[], hint=false, marks={}, done=false, right=0, total=0, vno=0;
+let level=1, nightNo=0, used=new Set(), usedDay=0, people=[], hint=false, marks={}, done=false, right=0, total=0, vno=0;
 const $=id=>document.getElementById(id);
 
 function makeVillage(){
   const mem=load(), t=today();
+  // 日付が変わったら、きのう出た話も選べるようにする（同じタブで翌日も遊んだとき、復習が出なくなるのを防ぐ）
+  if(usedDay!==t){ used=new Set(); usedDay=t; }
+  const notDue=id=>mem[id]>t; // 見誤って、まだ復習の日が来ていない話
   // 見誤った話のうち、出す日が来たものを1つまぜる
   const review=Object.keys(mem).filter(id=>byId[id] && mem[id]<=t && !used.has(id));
   let pick=[];
   if(review.length) pick.push(byId[shuffle(review)[0]]);
   // まだ出ていない話から選ぶ。正しい話・間違った話の両方が入る組が作れなければ、同じ段の全部から選び直す。
   // それでも作れなければ（段に片方しか残っていないとき）、偏りは許して必ず4人そろえる
-  const fresh=TALKS.filter(x=>x.lv===level && !used.has(x.id) && !pick.includes(x));
+  const fresh=TALKS.filter(x=>x.lv===level && !used.has(x.id) && !notDue(x.id) && !pick.includes(x));
+  const due=TALKS.filter(x=>x.lv===level && !notDue(x.id) && !pick.includes(x));
   const all=TALKS.filter(x=>x.lv===level && !pick.includes(x));
   let chosen=null;
-  for(const pool of [fresh, all]){
+  for(const pool of [fresh, due, all]){
     if(pool.length < PER-pick.length) continue;
     for(let tries=0; tries<40 && !chosen; tries++){
       const cand=pick.concat(shuffle(pool.slice()).slice(0,PER-pick.length));
