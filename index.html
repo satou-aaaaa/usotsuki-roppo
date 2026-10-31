@@ -109,6 +109,18 @@ button{font:inherit}
 .mon.big{width:84px;height:84px}
 .mon .body{animation:wob 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
 @keyframes wob{0%,100%{scale:1 1}50%{scale:1.06 .94}}
+.buddy{display:flex;gap:12px;align-items:center;background:#151838cc;border:1px solid #ffffff22;border-radius:14px;padding:10px 14px}
+.buddy b{font-family:var(--display);color:var(--lamp);font-size:16px}
+.buddy p{margin:0;font-size:12px}
+.buddy-svg{flex:none;overflow:visible;animation:bob 3s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-4px)}}
+.buddy-svg.st3{filter:drop-shadow(0 0 8px #ffd96a)}
+.gauge{display:inline-flex;align-items:center;gap:3px;color:#c58a1c;font-size:12px;letter-spacing:1px}
+.gauge .buddy-svg{animation:none}
+.page.power{animation:power 1.3s ease}
+@keyframes power{30%{box-shadow:0 0 0 5px #ffd96a,0 0 70px 24px #ffd96acc}}
+.res.power{background:linear-gradient(90deg,#fff1b8,#efe6cf)}
+.learn{display:flex;align-items:center;gap:10px;color:var(--lamp);font-family:var(--display);font-size:16px}
 .lurk{display:flex;align-items:center;gap:10px;font-size:13px;color:#5b3f86;margin:0}
 .lurk .mon{animation:rise .5s ease-out}
 @keyframes rise{from{transform:translateY(16px) scale(.6);opacity:0}to{transform:none;opacity:1}}
@@ -218,14 +230,14 @@ const BOOKS = [
  ]},
  {id:"mso", name:"民事訴訟法", c:"#255866", pages:[
   {id:"mso1", art:"民事訴訟法368条1項", w:["少額訴訟は、","60万円以下","のお金の支払いを","求める訴えで使える。"], lie:1, bad:"140万円以下", alt:["10万円以下","300万円以下"], why:"簡易裁判所で、早く終わらせるための手続。"},
-  {id:"mso2", art:"民事訴訟法377条", w:["少額訴訟の判決には、","控訴","することが","できない。"], lie:3, bad:"できる。", alt:["2回までできる。","弁護士ならできる。"], why:"不服なら、判決書の送達から2週間以内に、同じ裁判所へ異議を申し立てる（378条）。"},
+  {id:"mso2", art:"民事訴訟法377条", w:["少額訴訟の判決には、","控訴","することが","できない。"], lie:3, bad:"できる。", alt:["2回までできる。","弁護士ならできる。"], why:"不服なら、判決書（または判決に代わる調書）の送達から2週間以内に、同じ裁判所へ異議を申し立てる（378条）。"},
   {id:"mso3", art:"民事訴訟法246条", w:["裁判所は、","当事者が","申し立てていない","事項について、","判決できない。"], lie:-1, why:"うそは無いページ。何を求めるかを決めるのは当事者。"},
   {id:"mso4", art:"民事訴訟法285条", w:["控訴は、","判決の送達を受けた日から","2週間","以内にする。"], lie:2, bad:"1か月", alt:["1週間","3か月"], why:"2週間を過ぎると控訴できない（不変期間）。"},
   {id:"mso5", art:"民事訴訟法4条1項", w:["訴えは原則として、","訴えられる人","の住所地の","裁判所に起こす。"], lie:-1, why:"うそは無いページ。訴えられる側（被告）の住所地が基本。"},
   {id:"mso7", art:"民事訴訟法179条", w:["裁判所で当事者が","自白した事実は、","証明","しなくてよい。"], lie:1, bad:"主張した事実は、", alt:["否認した事実は、","争った事実は、"], why:"相手も認めた事実は、証拠で示さなくてよい。"},
   {id:"mso8", art:"民事訴訟法247条", w:["裁判所は、","弁論の全趣旨と","証拠調べの結果から、","自由な心証で","事実を認める。"], lie:-1, why:"うそは無いページ（自由心証主義）。"},
   {id:"mso9", art:"民事訴訟法267条", w:["和解を","調書に記録すると、","確定判決と同じ","効力を持つ。"], lie:2, bad:"契約書と同じ", alt:["仮の判決と同じ","メモと同じ"], why:"裁判所での和解は、確定した判決と同じ重み。"},
-  {id:"mso10", art:"民事訴訟法378条", w:["少額訴訟の判決に不服なら、","判決書の送達から","2週間","以内に、","同じ裁判所","に異議を申し立てる。"], lie:4, bad:"高等裁判所", alt:["地方裁判所","最高裁判所"], why:"控訴はできず、判決をした裁判所に異議を出す。"},
+  {id:"mso10", art:"民事訴訟法378条", w:["少額訴訟では、","判決書か判決に代わる調書の送達から","2週間","以内に、","同じ裁判所","に異議を出す。"], lie:4, bad:"高等裁判所", alt:["地方裁判所","最高裁判所"], why:"控訴はできず、判決をした裁判所に異議を出す。判決に代わる調書（判決の要旨を記録したもの）が送られたときは、その送達から数える。"},
   {id:"mso6", art:"民事訴訟法371条", w:["少額訴訟で調べる証拠は、","すぐに調べられるもの","に限られる。"], lie:1, bad:"書面", alt:["証人の話","専門家の鑑定"], why:"1回の期日で終わらせるため、その場で調べられる証拠だけ。"}
  ]},
  {id:"kso", name:"刑事訴訟法", c:"#5a2a55", pages:[
@@ -298,12 +310,33 @@ function frame() {
   document.body.classList.toggle("dawn", allDone());
 }
 
+// 相棒のしおり：本に住む小さな相棒。取り戻した巻ごとに技を1つ覚えて姿が育つ。3ページ続けて直すと大技が出る
+const ARTS = { ken: "礎の灯", min: "結びの糸", kei: "戒めの鎖", sho: "算盤の風", mso: "天秤の盾", kso: "黙の帳" };
+const POWER = 3;
+const learned = () => BOOKS.filter((b) => solvedIn(b) === b.pages.length).map((b) => ARTS[b.id]);
+const stageOf = (n) => (n >= 6 ? 3 : n >= 4 ? 2 : n >= 2 ? 1 : 0);
+function buddy(big) {
+  const st = stageOf(learned().length), fill = st === 3 ? "#ffd96a" : "#f6ecd2", k = (big ? 0.9 : 0.34) * (0.85 + st * 0.1);
+  return `<svg class="buddy-svg st${st}" viewBox="-40 -60 80 104" width="${Math.round(80 * k)}" height="${Math.round(104 * k)}" aria-hidden="true">` +
+    '<path d="M0 -42 V-52" stroke="#b3261e" stroke-width="3"/><circle cx="0" cy="-54" r="4" fill="#b3261e"/>' +
+    (st >= 1 ? '<path d="M-22 4 l-11 -9 M22 4 l11 -9" stroke="#c9a96a" stroke-width="4" stroke-linecap="round"/>' : "") +
+    `<path d="M-22 -40 H22 V38 L0 26 L-22 38Z" fill="${fill}" stroke="#c9a96a" stroke-width="3" stroke-linejoin="round"/>` +
+    (st >= 2 ? '<path d="M0 -36 l3 6 6 1 -4.5 4 1 6 -5.5 -3 -5.5 3 1 -6 -4.5 -4 6 -1z" fill="#e7b04f"/>' : "") +
+    '<circle cx="-8" cy="-10" r="3.2" fill="#2a2420"/><circle cx="8" cy="-10" r="3.2" fill="#2a2420"/>' +
+    '<ellipse cx="-13" cy="-2" rx="4" ry="2.4" fill="#f2a39a"/><ellipse cx="13" cy="-2" rx="4" ry="2.4" fill="#f2a39a"/>' +
+    '<path d="M-4 0 Q0 5 4 0" stroke="#2a2420" stroke-width="2" fill="none" stroke-linecap="round"/></svg>';
+}
+// 大技の名前：この巻の技を覚えていればそれ、無ければ覚えた技のどれか、まだ何も無ければ「しおりの灯」
+function techFor(b) { const xs = learned(); return xs.includes(ARTS[b.id]) ? ARTS[b.id] : xs.length ? xs[Math.floor(Math.random() * xs.length)] : "しおりの灯"; }
+
 // 本棚
 function shelf() {
   S = null; frame();
   const done = allDone();
   let h = done ? '<div class="panel" id="dawn"><h2>夜明け！</h2><p>六法をすべて取り戻した。村じゅうに灯りがともった。</p></div>'
     : '<p class="prolog">夜のうちに、ねじれ文字が六法の言葉をうそに書き換えた。うその言葉を見つけ、正しい札で封じよう。</p>';
+  const arts = learned();
+  h += `<div class="buddy" id="buddy">${buddy(true)}<div><b>相棒のしおり</b><p>覚えた技：${arts.length ? arts.join("・") : "まだ無い（巻を取り戻すと覚える）"}</p><p>3ページ続けて直すと、大技が出る。</p></div></div>`;
   h += '<div class="shelf" id="shelf">' + BOOKS.map((b, i) => {
     const n = solvedIn(b), full = n === b.pages.length;
     return `<button class="spine${full ? " done" : ""}" data-book="${b.id}" style="--c:${b.c};height:${170 + (i % 3) * 14}px" aria-label="${b.name}の巻（${n}/${b.pages.length}）">` +
@@ -317,7 +350,7 @@ function shelf() {
 
 function openBook(id, only) {
   const b = BOOKS.find((x) => x.id === id);
-  S = { b, list: makeOrder(b, only), i: 0, st: null, cards: null, got: [], lost: [], streak: 0, best: 0 };
+  S = { b, list: makeOrder(b, only), i: 0, st: null, cards: null, got: [], lost: [], streak: 0, best: 0, wasFull: solvedIn(b) === b.pages.length };
   render(true);
 }
 
@@ -334,10 +367,11 @@ function words(p) {
 function render(turn) {
   frame();
   const p = S.list[S.i], st = S.st, boss = p === bossOf(S.b);
-  let h = `<div class="stage"><article class="page${boss ? " boss" : ""}${turn ? " turn" : ""}" style="--c:${S.b.c}">` +
-    `<div class="head"><span class="art">${p.art}</span><span>${S.b.name}の巻　${S.i + 1} / ${S.list.length}</span></div>`;
+  const gv = st && st.power ? POWER : S.streak % POWER;
+  let h = `<div class="stage"><article class="page${boss ? " boss" : ""}${turn ? " turn" : ""}${st && st.power ? " power" : ""}" style="--c:${S.b.c}">` +
+    `<div class="head"><span class="art">${p.art}</span><span class="gauge" id="gauge" aria-label="しおりの力 ${gv}/${POWER}">${buddy(false)}${"●".repeat(gv)}${"○".repeat(POWER - gv)}</span><span>${S.b.name}の巻　${S.i + 1} / ${S.list.length}</span></div>`;
   if (boss && !st) h += '<p style="margin:0"><span class="chip">巻末：大きなねじれ文字が潜んでいる</span></p>';
-  if (S.streak >= 2 && !st) h += `<p class="streak">れんぞく ${S.streak}　札の力が強まっている</p>`;
+  if (S.streak % POWER === POWER - 1 && !st) h += '<p class="streak">しおりの力が、あと1つで満ちる！</p>';
   if (!st) {
     h += `<div class="text">${words(p)}</div><p class="q">うそに書き換えられた言葉をタップ。</p><button class="none" id="none">このページにうそは無い</button>`;
   } else if (st.choose) {
@@ -350,8 +384,9 @@ function render(turn) {
     if (clean) { face = '<span style="font-size:34px" aria-hidden="true">🏮</span>'; head = st.ok ? "見破った！ うそは無い。" : "このページに、うそは無かった。"; }
     else if (st.ok) { face = `<div class="fuda">${monster(p, false)}<span class="stamp">封</span></div>`; head = `封じた！ ねじれ「${p.bad}」`; }
     else { face = `<div class="flee">${monster(p, boss)}</div>`; head = `逃げられた… 正しくは「${p.w[p.lie]}」`; }
+    if (st.power) { head = `しおりの大技「${st.power}」！ ` + head; if (clean) face = `<span>${buddy(true)}</span>`; }
     h += `<div class="text done">${clean ? p.w.join("") : words(p)}</div>` +
-      `<div class="res" id="res">${face}<p><b>${head}</b><br>${st.note ? st.note + "<br>" : ""}${p.why}</p></div>` +
+      `<div class="res${st.power ? " power" : ""}" id="res">${face}<p><b>${head}</b><br>${st.note ? st.note + "<br>" : ""}${p.why}</p></div>` +
       `<button class="btn go" id="next">${S.i < S.list.length - 1 ? "次のページへ" : "本を閉じる"}</button>`;
   }
   h += "</article></div>";
@@ -371,7 +406,7 @@ function fit(c) { const p = S.list[S.i], ok = c === p.w[p.lie]; finish(ok, ok ? 
 function finish(ok, note, miss) {
   const p = S.list[S.i];
   S.st = { done: true, ok, note, miss };
-  if (ok) { mem.solved[p.id] = true; S.got.push(p); S.streak++; S.best = Math.max(S.best, S.streak); save(); }
+  if (ok) { mem.solved[p.id] = true; S.got.push(p); S.streak++; S.best = Math.max(S.best, S.streak); save(); if (S.streak % POWER === 0) S.st.power = techFor(S.b); }
   else { S.lost.push(p); S.streak = 0; }
   render();
 }
@@ -388,6 +423,7 @@ function fin() {
   const mons = S.got.map((p) => slot(p, false)).join("") + S.lost.map((p) => slot(p, true)).join("");
   view().innerHTML = `<div class="panel" id="fin"><h2>${full ? `${b.name}の巻を取り戻した！` : `${b.name}の巻 ${n} / ${b.pages.length} ページ`}</h2>` +
     `<p>${S.list.length}ページ中 ${S.got.length}ページを一度で直した。${S.best >= 3 ? `れんぞく ${S.best}！` : ""}</p>` +
+    (full && !S.wasFull ? `<p class="learn" id="learn">${buddy(true)}<span>相棒のしおりが、新しい技「${ARTS[b.id]}」を覚えた！</span></p>` : "") +
     (mons ? `<div class="mons">${mons}</div>` : "") +
     `<div class="row">${lost.length ? '<button class="btn" id="chase">逃がした魔を追う</button>' : full ? "" : '<button class="btn" id="more">続きを読む</button>'}<button class="btn sub2" id="back">本棚へ</button></div></div>`;
   const c = $("chase"); if (c) c.addEventListener("click", () => openBook(b.id, lost));
