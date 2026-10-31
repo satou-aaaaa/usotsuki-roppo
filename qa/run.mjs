@@ -49,6 +49,8 @@ try {
         mem = { solved: Object.fromEntries(pool.slice(0, 7).map((p) => [p.id, true])) };
         const o2 = makeOrder(b);
         if (!pool.slice(7).every((p) => o2.includes(p)) || o2.length !== PER) bad.push(`${b.id}:todo${i}`);
+        const firstDone = o2.findIndex((p) => mem.solved[p.id]), lastTodo = o2.slice(0, -1).map((p) => !mem.solved[p.id]).lastIndexOf(true);
+        if (firstDone !== -1 && lastTodo > firstDone) bad.push(`${b.id}:todo-first${i}`);
         const r = makeOrder(b, [b.pages[1], bossOf(b)]);
         if (r.length !== 2 || r[1] !== bossOf(b)) bad.push(`${b.id}:only${i}`);
         const r2 = makeOrder(b, [b.pages[2]]);
