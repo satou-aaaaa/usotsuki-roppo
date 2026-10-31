@@ -1,4 +1,4 @@
-// うそつき六法の検査。index.html をブラウザで開き、見本の話の形と遊び方を確かめる。
+// うそつき六法（封じの六法）の検査。index.html をブラウザで開き、ページの形と遊び方を確かめる。
 // 使い方: node qa/run.mjs   失敗があれば終了コード 1。結果は qa-report/report.md。
 import { chromium } from "playwright";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -17,81 +17,163 @@ try {
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(url);
 
-  // 1. 話の一覧の形：各段12話・正しい話と間違った話の両方・条文は「名前：要点」
-  const data = await page.evaluate(() => TALKS.map((t) => ({ id: t.id, lv: t.lv, ok: t.ok, say: t.say, law: t.law, why: t.why })));
-  const ids = new Set(data.map((t) => t.id));
-  check("話の id が重ならない", ids.size === data.length, `${data.length}話`);
-  for (const lv of [1, 2, 3]) {
-    const xs = data.filter((t) => t.lv === lv);
-    check(`段${lv}に正しい話と間違った話がある`, xs.some((t) => t.ok) && xs.some((t) => !t.ok), `${xs.length}話`);
-  }
-  check("条文は「名前：要点」の形", data.every((t) => t.law.includes("：")));
-  check("せりふは45字以内（一目で読める長さ）", data.every((t) => t.say.length <= 45), data.filter((t) => t.say.length > 45).map((t) => t.id).join(","));
+  // 1. ページの形：6冊×6ページ・うその場所と札がそろう・各巻にうその無いページがある・最後は大きな魔
+  const data = await page.evaluate(() => BOOKS.map((b) => ({ id: b.id, name: b.name, pages: b.pages.map((p) => ({ id: p.id, art: p.art, w: p.w, lie: p.lie, bad: p.bad, alt: p.alt, why: p.why })) })));
+  const pages = data.flatMap((b) => b.pages);
+  check("6冊ある（憲法・民法・刑法・商法・民事訴訟法・刑事訴訟法）", data.map((b) => b.name).join() === "憲法,民法,刑法,商法,民事訴訟法,刑事訴訟法");
+  check("どの巻も6ページ", data.every((b) => b.pages.length === 6), data.map((b) => b.pages.length).join(","));
+  check("ページの id が重ならない", new Set(pages.map((p) => p.id)).size === pages.length);
+  const badShape = pages.filter((p) => p.lie >= 0 && !(p.lie < p.w.length && p.bad && p.bad !== p.w[p.lie] && p.alt?.length === 2
+    && new Set([p.w[p.lie], ...p.alt]).size === 3 && !p.alt.includes(p.bad)));
+  check("うそのページは、場所・うその言葉・札3枚（正しい言葉を含み、うその言葉は含まない）がそろう", badShape.length === 0, badShape.map((p) => p.id).join(","));
+  check("どの巻にも、うその無いページが1〜3ページある", data.every((b) => { const n = b.pages.filter((p) => p.lie < 0).length; return n >= 1 && n <= 3; }));
+  check("各巻の最後のページ（大きな魔）には必ずうそがある", data.every((b) => b.pages[5].lie >= 0));
+  const lawName = { ken: ["憲法"], min: ["民法"], kei: ["刑法"], sho: ["商法", "会社法"], mso: ["民事訴訟法"], kso: ["刑事訴訟法"] };
+  check("条文の名前が巻と合う", data.every((b) => b.pages.every((p) => lawName[b.id].some((n) => p.art.startsWith(n)) && /\d+条/.test(p.art))));
+  const long = pages.filter((p) => p.w.join("").length > 45 || (p.lie >= 0 && p.w.join("").length - p.w[p.lie].length + p.bad.length > 45));
+  check("1ページの文は45字以内（一目で読める長さ）", long.length === 0, long.map((p) => p.id).join(","));
+  check("言葉のかたまりは3つ以上（タップで選べる）", pages.every((p) => p.w.length >= 3));
+  check("答え合わせの一言がある", pages.every((p) => p.why && p.why.length <= 80));
 
-  // 1b. 村の組み方：何回作っても4人そろい、正しい話・間違った話が両方入る（2026-10-31 段1で間違った話を使い切ると0人の村ができた）
-  const villages = await page.evaluate(() => {
-    const bad = []; const keep = { level, used: new Set(used), vno };
-    for (const lv of [1, 2, 3]) { level = lv; used = new Set();
-      for (let i = 0; i < 300; i++) { makeVillage(); const nf = people.filter((p) => !p.ok).length;
-        if (people.length !== PER) bad.push({ size: true, msg: `段${lv}の${i}回目：${people.length}人` }); else if (nf < 1 || nf > 3) bad.push({ size: false, msg: `段${lv}の${i}回目：間違い${nf}人` }); } }
-    level = keep.level; used = keep.used; vno = keep.vno; makeVillage(); render(); return bad;
+  // 1b. ページの並び：何回作っても全ページが1回ずつ出て、大きな魔は最後（乱数で組むので500回ずつ確かめる）
+  const orders = await page.evaluate(() => {
+    const bad = [];
+    for (const b of BOOKS) for (let i = 0; i < 500; i++) {
+      const o = makeOrder(b);
+      if (o.length !== 6 || new Set(o).size !== 6 || o[5] !== bossOf(b)) bad.push(`${b.id}:${i}`);
+      const only = [b.pages[1], b.pages[5]], r = makeOrder(b, only);
+      if (r.length !== 2 || r[1] !== bossOf(b)) bad.push(`${b.id}:only${i}`);
+      const r2 = makeOrder(b, [b.pages[2]]);
+      if (r2.length !== 1 || r2[0] !== b.pages[2]) bad.push(`${b.id}:only1-${i}`);
+    }
+    return bad;
   });
-  const short = villages.filter((b) => b.size), skew = villages.filter((b) => !b.size);
-  check("村を900回作っても毎回4人そろう", short.length === 0, short.slice(0, 3).map((b) => b.msg).join(" / "));
-  check("村には正しい話と間違った話が両方入る（900回のうち95%以上）", skew.length <= 45, `${skew.length}回 偏った`);
+  check("ページの並びを3000回作っても、全ページが1回ずつで大きな魔は最後", orders.length === 0, orders.slice(0, 3).join(" / "));
+  const cardsOk = await page.evaluate(() => { let bad = 0; for (const p of ALL.filter((x) => x.lie >= 0)) for (let i = 0; i < 100; i++) { const c = shuffle([p.w[p.lie], ...p.alt]); if (c.length !== 3 || !c.includes(p.w[p.lie]) || c.includes(p.bad)) bad++; } return bad; });
+  check("札を2500回まぜても、正しい札が必ず入り、うその言葉は入らない", cardsOk === 0, `${cardsOk}回`);
 
-  // 1c. 復習：見誤った話は出す日まで出さない・日付が変わったら前の日に出た話も復習に出す（2026-10-31 CodeRabbit の指摘）
-  const rv = await page.evaluate(() => {
-    const keep = { level, used: new Set(used), usedDay, vno, mem: localStorage.getItem(KEY) };
-    const t = today(), wait = ["e2", "e7"]; const m = {}; wait.forEach((id) => (m[id] = t + DAY)); localStorage.setItem(KEY, JSON.stringify(m));
-    let early = 0, short = 0; level = 1;
-    for (let i = 0; i < 300; i++) { used = new Set(); makeVillage(); if (people.some((p) => wait.includes(p.id))) early++; if (people.length !== PER) short++; }
-    localStorage.setItem(KEY, JSON.stringify({ e1: t - DAY })); used = new Set(["e1"]); usedDay = t - DAY; makeVillage();
-    const nextDay = people.some((p) => p.id === "e1");
-    level = keep.level; used = keep.used; usedDay = keep.usedDay; vno = keep.vno;
-    if (keep.mem === null) localStorage.removeItem(KEY); else localStorage.setItem(KEY, keep.mem);
-    makeVillage(); render(); return { early, short, nextDay };
-  });
-  check("見誤った話は出す日まで出ない（300回）", rv.early === 0 && rv.short === 0, `早く出た${rv.early}回・4人未満${rv.short}回`);
-  check("日付が変わると、前の日に出た話も復習に出る", rv.nextDay);
   check("スマホ用の viewport がある", await page.evaluate(() => (document.querySelector('meta[name="viewport"]')?.content || "").includes("width=device-width")));
 
-  // 2. 一問ずつ出る・ヒントは番号だけ・答えると条文が出る
-  check("村人は1人ずつ出る", (await page.locator(".person").count()) === 1);
-  await page.click(".flip");
-  const hint = await page.textContent(".person .law");
-  check("ヒントは条文の番号だけ", hint.startsWith("ヒント：") && !hint.includes("、") , hint);
-  check("ヒントは村で1回だけ", await page.locator(".flip").isDisabled());
+  // 2. 本棚：6冊の背表紙・前置きは一言・封じ帳
+  check("本棚に6冊の背表紙が並ぶ", (await page.locator(".spine").count()) === 6);
+  check("前置きは一言（ねじれ文字）", (await page.textContent(".prolog")).includes("ねじれ文字"));
+  check("画面に「人狼」という言葉が無い", !(await page.evaluate(() => document.documentElement.outerHTML)).includes("人狼"));
 
-  // 3. 一晩（5村）を遊ぶ：全問正解で難しく、全問誤りで易しくなる
-  const levels = [];
-  for (let v = 0; v < 5; v++) {
-    levels.push(await page.textContent("#vname"));
-    for (let k = 0; k < 4; k++) {
-      const ok = await page.evaluate(() => { const s = document.querySelector(".person .say").textContent.slice(1, -1); return TALKS.find((t) => t.say === s).ok; });
-      const pick = v === 2 ? !ok : ok;
-      await page.click(`.vote[data-m="${pick ? "o" : "x"}"]`);
-      if (k === 0) check(`第${v + 1}の村：答えると条文と解説が出る`, (await page.locator(".person .law").count()) === 2);
-      await page.click("#next");
-    }
+  // 3. 憲法の巻を全部正しく直す：一画面一問・うそを押すと札が3枚・直すと札に封じる・最後は大きな魔
+  await page.click('.spine[data-book="ken"]');
+  check("巻を開くと、1ページだけ出る", (await page.locator(".page").count()) === 1);
+  const solve = async (wrong) => {
+    const p = await page.evaluate(() => { const p = S.list[S.i]; return { lie: p.lie, bad: p.bad, right: p.lie >= 0 ? p.w[p.lie] : null, boss: p === bossOf(S.b), n: p.w.length }; });
+    if (wrong === "word") { await page.click(`.w[data-k="${p.lie === 0 ? 1 : 0}"]`); return p; }
+    if (p.lie < 0) { await page.click("#none"); return p; }
+    await page.click(`.w[data-k="${p.lie}"]`);
+    if (wrong === "card") { await page.locator(".card").filter({ hasNotText: p.right }).first().click(); return p; }
+    await page.locator(".card", { hasText: p.right }).first().click();
+    return p;
+  };
+  let sawBoss = false, sawSeal = false, sawCards = false, sawWhy = true;
+  for (let k = 0; k < 6; k++) {
+    const boss = await page.evaluate(() => S.list[S.i] === bossOf(S.b));
+    if (k === 5) sawBoss = boss && (await page.locator(".page.boss .chip").count()) === 1;
+    const p = await page.evaluate(() => S.list[S.i].lie);
+    if (p >= 0) {
+      await page.click(`.w[data-k="${p}"]`);
+      sawCards = sawCards || (await page.locator(".card").count()) === 3;
+      const right = await page.evaluate(() => { const p = S.list[S.i]; return p.w[p.lie]; });
+      await page.locator(".card", { hasText: right }).first().click();
+      sawSeal = sawSeal || (await page.locator(".res .fuda .stamp").count()) === 1;
+    } else await page.click("#none");
+    sawWhy = sawWhy && (await page.locator("#res").count()) === 1;
     await page.click("#next");
-    if (v === 0) check("次の村へ進むと、前の村のまとめは消える", await page.locator("#result").isHidden());
   }
-  check("全問正解で次の村が難しくなる", levels[0].includes("★☆☆") && levels[1].includes("★★☆") && levels[2].includes("★★★"), levels.join(" / "));
-  check("全問誤りで次の村が易しくなる", levels[3].includes("★★☆"), levels[3]);
+  check("うその言葉を押すと札が3枚出る", sawCards);
+  check("正しい札で直すと、札に封じる印が出る", sawSeal);
+  check("答えるたびに答え合わせの一言が出る", sawWhy);
+  check("最後のページは大きな魔の印つき", sawBoss);
+  check("全部直すと「巻を取り戻した」になる", (await page.textContent("#fin h2")).includes("憲法の巻を取り戻した"));
+  check("全部直したら「逃がした魔を追う」は出ない", (await page.locator("#chase").count()) === 0);
+  await page.click("#back");
+  check("取り戻した巻は本棚で光り、村に灯りが1つともる", (await page.locator('.spine.done[data-book="ken"]').count()) === 1 && (await page.locator(".town .win.lit").count()) === 1);
+  check("上の数字が封じた魔の数になる", (await page.textContent("#stat")).includes("4"));
 
-  // 4. 見誤った話は翌日以降に出す日が記録される
-  const mem = await page.evaluate(() => JSON.parse(localStorage.getItem("roppo-village-v1") || "{}"));
-  check("見誤った話が記録される", Object.keys(mem).length >= 1, Object.keys(mem).join(","));
+  // 4. 民法の巻：うそでない言葉を押す・違う札を選ぶ → 逃げられる。逃がした魔だけ追い直せる
+  await page.click('.spine[data-book="min"]');
+  const plan = ["word", "card"];
+  let lostN = 0, sawFlee = false, sawAnswer = false;
+  for (let k = 0; k < 6; k++) {
+    const lie = await page.evaluate(() => S.list[S.i].lie);
+    const mode = lie >= 0 && plan.length ? plan.shift() : null;
+    await solve(mode);
+    if (mode) { lostN++; sawFlee = sawFlee || (await page.locator(".res .flee").count()) === 1; sawAnswer = sawAnswer || (await page.locator(".text.done .w.ans").count()) === 1; }
+    await page.click("#next");
+  }
+  check("間違えると魔が逃げ、正しい言葉が示される", sawFlee && sawAnswer);
+  check("巻の終わりに逃げた魔が並ぶ", (await page.locator("#fin .slot.out").count()) === lostN);
+  await page.click("#chase");
+  check("「逃がした魔を追う」は逃がしたページだけ出す", (await page.evaluate(() => S.list.length)) === lostN);
+  for (let k = 0; k < lostN; k++) { await solve(null); await page.click("#next"); }
+  check("追い直して全部封じると、民法の巻も取り戻せる", (await page.textContent("#fin h2")).includes("民法の巻を取り戻した"));
+  await page.click("#back");
 
-  // 4b. 応援のリンク：Ko-fi へのただのリンクだけ（外のスクリプトを読まず、遊ぶ人の記録を外へ送らない）
+  // 5. 記録はこの端末にだけ残り、開き直しても消えない
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem(KEY) || "{}"));
+  check("直したページが記録される", Object.keys(saved.solved || {}).length === 12, Object.keys(saved.solved || {}).length + "ページ");
+  await page.reload();
+  check("開き直しても本棚の光は残る", (await page.locator(".spine.done").count()) === 2);
+
+  // 6. 封じ帳：封じた魔が並び、まだのところは「？」
+  await page.click("#cho");
+  const got = await page.locator("#chobook .slot.got").count(), all = await page.evaluate(() => MONS.length);
+  check("封じ帳に封じた魔が並ぶ", got === 9 && (await page.locator("#chobook .slot").count()) === all, `${got}/${all}`);
+  await page.click("#back");
+
+  // 7. 残りの4冊を直すと夜明け
+  for (const id of ["kei", "sho", "mso", "kso"]) {
+    await page.click(`.spine[data-book="${id}"]`);
+    for (let k = 0; k < 6; k++) { await solve(null); await page.click("#next"); }
+    await page.click("#back");
+  }
+  check("6冊すべて取り戻すと夜明けになり、村の灯りが6つ", (await page.locator("#dawn").count()) === 1 && (await page.evaluate(() => document.body.classList.contains("dawn"))) && (await page.locator(".town .win.lit").count()) === 6);
+
+  // 8. 記録が壊れていても、記録を拒むブラウザでも遊べる
+  const p2 = await browser.newPage({ viewport: { width: 390, height: 800 } });
+  const err2 = [];
+  p2.on("pageerror", (e) => err2.push(e.message));
+  await p2.addInitScript(() => { try { localStorage.setItem("roppo-seal-v1", "{こわれた"); } catch (e) {} });
+  await p2.goto(url);
+  check("記録が壊れていても本棚が出る", (await p2.locator(".spine").count()) === 6 && err2.length === 0, err2.join(" / "));
+  await p2.close();
+
+  // 9. 応援のリンク：Ko-fi へのただのリンクだけ（外のスクリプトを読まず、遊ぶ人の記録を外へ送らない）
   const kofi = await page.locator("#kofi").evaluate((a) => ({ href: a.href, rel: a.rel })).catch(() => null);
   check("応援のリンクが Ko-fi のページを指す", kofi && kofi.href === "https://ko-fi.com/satouaaaaa", kofi?.href || "無い");
   check("応援のリンクは noopener つき", kofi && kofi.rel.includes("noopener"));
   check("外のスクリプトを読まない", (await page.locator("script[src]").count()) === 0);
 
-  // 5. スマホ幅で横にはみ出さない・エラーが出ない
-  check("スマホ幅で横にはみ出さない", (await page.evaluate(() => document.documentElement.scrollWidth)) <= 390);
+  // 10. 前の版（classic.html）も開ける
+  const p3 = await browser.newPage({ viewport: { width: 390, height: 800 } });
+  const err3 = [];
+  p3.on("pageerror", (e) => err3.push(e.message));
+  await p3.goto("file://" + path.join(root, "classic.html"));
+  check("前の版（classic.html）がエラーなく開く", (await p3.locator(".person").count()) === 1 && err3.length === 0, err3.join(" / "));
+  await p3.close();
+
+  // 11. スマホ幅で横にはみ出さない（本棚・ページ・封じ帳）・エラーが出ない
+  const wide = [];
+  await page.evaluate(() => { localStorage.removeItem(KEY); mem = load(); shelf(); });
+  if ((await page.evaluate(() => document.documentElement.scrollWidth)) > 390) wide.push("本棚");
+  await page.click('.spine[data-book="kso"]');
+  for (let k = 0; k < 6; k++) {
+    const lie = await page.evaluate(() => S.list[S.i].lie);
+    if (lie >= 0) { await page.click(`.w[data-k="${lie}"]`); if ((await page.evaluate(() => document.documentElement.scrollWidth)) > 390) wide.push("札"); }
+    else await page.click("#none");
+    if (lie >= 0) { const right = await page.evaluate(() => { const p = S.list[S.i]; return p.w[p.lie]; }); await page.locator(".card", { hasText: right }).first().click(); }
+    if ((await page.evaluate(() => document.documentElement.scrollWidth)) > 390) wide.push("答え合わせ");
+    await page.click("#next");
+  }
+  await page.click("#back"); await page.click("#cho");
+  if ((await page.evaluate(() => document.documentElement.scrollWidth)) > 390) wide.push("封じ帳");
+  check("スマホ幅で横にはみ出さない（本棚・札・答え合わせ・封じ帳）", wide.length === 0, wide.join(","));
   check("ページのエラーが無い", errors.length === 0, errors.join(" / "));
 } finally {
   await browser.close();
