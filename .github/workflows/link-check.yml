@@ -1,0 +1,23 @@
+name: Link check
+
+# 公開ページのリンク切れを週1回調べる（Claude は使わない）。中身は共通部品 satou-aaaaa/shared-workflows。
+# 失敗すると ci-failure-issue.yml が Issue を立てる（見張り一覧に "Link check" を入れておく）。
+on:
+  schedule:
+    # 毎週水曜 06:37 JST（= 火曜 21:37 UTC）
+    - cron: "37 21 * * 2"
+  workflow_dispatch:
+  # このファイルを変えた PR でも1回動かし、設定の誤り（調べるリンクが0件など）をマージ前に見つける
+  pull_request:
+    paths:
+      - .github/workflows/link-check.yml
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    uses: satou-aaaaa/shared-workflows/.github/workflows/link-check.yml@main
+    with:
+      # 調べるリンクが0件だと落ちる（lychee の failIfEmpty）。画面を JS で作るアプリは README.md なども足す
+      files: '*.html'

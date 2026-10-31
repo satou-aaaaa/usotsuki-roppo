@@ -1,0 +1,23 @@
+name: CI failure issue
+
+# main で下のワークフローが失敗したら ci-failure の Issue を立て、次に成功したら閉じる（Claude は使わない）。
+# 中身は共通部品 satou-aaaaa/shared-workflows にある。見張るワークフローの名前（name:）だけをここに書く。
+on:
+  workflow_run:
+    workflows: ["QA", "Site watch", "Lighthouse"]
+    types: [completed]
+  # 見回り: GITHUB_TOKEN で起こした実行（自動マージが起こす Pages など）は workflow_run を起こさないので、
+  # 6時間ごとに見張る名前の main の最新の実行を見て、Issue を立てる・閉じる（上の workflows: は1行で書く）
+  schedule:
+    - cron: "29 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  actions: read
+  # ジョブの時間切れ（timeout-minutes）を見分けるため、注記を読む（非公開リポジトリで要る）
+  checks: read
+
+jobs:
+  report:
+    uses: satou-aaaaa/shared-workflows/.github/workflows/ci-failure-issue.yml@main

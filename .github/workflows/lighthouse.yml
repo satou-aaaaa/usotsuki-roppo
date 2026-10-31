@@ -1,0 +1,23 @@
+name: Lighthouse
+
+# 公開中のページの Lighthouse の点数を週1回測る（Claude は使わない）。中身は共通部品 satou-aaaaa/shared-workflows。
+# baseline は最初に手で1回動かして測った値を入れる。
+on:
+  schedule:
+    # 毎週月曜 06:27 JST（= 日曜 21:27 UTC）
+    - cron: "27 21 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: read
+
+concurrency:
+  group: lighthouse
+  cancel-in-progress: false
+
+jobs:
+  measure:
+    uses: satou-aaaaa/shared-workflows/.github/workflows/lighthouse.yml@main
+    with:
+      baseline: '{"performance": 70, "accessibility": 90, "best-practices": 90, "seo": 90}'
