@@ -94,7 +94,7 @@ try {
     }
     return lost;
   };
-  let sawBoss = false, sawSeal = false, sawCards = false, sawWhy = true, power = [];
+  let sawBoss = false, sawSeal = false, sawCards = false, sawWhy = true, power = [], heads = [];
   for (let k = 0; k < 6; k++) {
     if (k === 5) sawBoss = (await page.evaluate(() => S.list[S.i] === bossOf(S.b))) && (await page.locator(".page.boss .chip").count()) === 1;
     const lie = await page.evaluate(() => S.list[S.i].lie);
@@ -106,13 +106,16 @@ try {
       sawSeal = sawSeal || (await page.locator(".res .fuda .stamp").count()) === 1;
     } else await page.click("#none");
     sawWhy = sawWhy && (await page.locator("#res").count()) === 1;
-    power.push((await page.locator(".page.power #res.power").count()) === 1 ? await page.textContent("#res b") : "");
+    const head = await page.textContent("#res b");
+    heads.push(head);
+    power.push((await page.locator(".page.power #res.power").count()) === 1 ? head : "");
     await page.click("#next");
   }
   check("うその言葉を押すと札が3枚出る", sawCards);
   check("正しい札で直すと、札に封じる印が出る", sawSeal);
   check("答えるたびに答え合わせの一言が出る", sawWhy);
   check("1回分の最後のページは大きな魔の印つき", sawBoss);
+  check("正しく直したページは、どれも「封じた」か「見破った」になる（逃げられたと出ない）", heads.every((h) => /封じた|見破った/.test(h) && !h.includes("逃げられた")), heads.join(" / "));
   check("3ページ続けて直すと大技が出る（3・6ページ目だけ）", power.map((x) => !!x).join() === "false,false,true,false,false,true" && power[2].includes("しおりの大技「しおりの灯」"), power.join(" / "));
   check("1回目で6ページ直すと「続きを読む」が出る", (await page.textContent("#fin h2")).includes("6 / 10") && (await page.locator("#more").count()) === 1, await page.textContent("#fin h2"));
   await page.click("#more");
@@ -148,6 +151,15 @@ try {
   check("追い直して続きも読むと、民法の巻も取り戻せる", (await page.textContent("#fin h2")).includes("民法の巻を取り戻した"));
   await page.click("#back");
 
+  // 4b. 間違えると力が0に戻る：2ページ直す→間違える→2ページ直すでは大技が出ない（3つ目でやっと出る）
+  const resetSeq = await page.evaluate(() => {
+    const keep = { S, mem: JSON.stringify(mem) }; const out = [];
+    S = { b: BOOKS[2], list: BOOKS[2].pages.slice(), i: 0, st: null, cards: null, got: [], lost: [], streak: 0, best: 0, wasFull: false };
+    for (const ok of [true, true, false, true, true, true]) { finish(ok, null); out.push(S.st.power ? "大技" : "-"); S.i++; }
+    S = keep.S; mem = JSON.parse(keep.mem); save(); return out.join(",");
+  });
+  check("間違えるとしおりの力が0に戻る（直す2→間違い→直す2では大技なし、3つ目で出る）", resetSeq === "-,-,-,-,-,大技", resetSeq);
+
   // 5. 記録はこの端末にだけ残り、開き直しても消えない
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem(KEY) || "{}"));
   check("直したページが記録される", Object.keys(saved.solved || {}).length === 20, Object.keys(saved.solved || {}).length + "ページ");
@@ -167,7 +179,8 @@ try {
     await readOnce(); await page.click("#more"); await readOnce();
     await page.click("#back");
   }
-  check("6冊そろうと相棒が金色に育ち、技が6つ", (await page.locator("#buddy .buddy-svg.st3").count()) === 1 && (await page.textContent("#buddy")).includes("黙の帳"));
+  const buddyText = await page.textContent("#buddy");
+  check("6冊そろうと相棒が金色に育ち、技が6つ", (await page.locator("#buddy .buddy-svg.st3").count()) === 1 && ["礎の灯", "結びの糸", "戒めの鎖", "算盤の風", "天秤の盾", "黙の帳"].every((x) => buddyText.includes(x)), buddyText);
   check("6冊すべて取り戻すと夜明けになり、村の灯りが6つ", (await page.locator("#dawn").count()) === 1 && (await page.evaluate(() => document.body.classList.contains("dawn"))) && (await page.locator(".town .win.lit").count()) === 6);
 
   // 8. 記録が壊れていても、記録を拒むブラウザでも遊べる

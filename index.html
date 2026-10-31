@@ -383,8 +383,8 @@ function render(turn) {
     let face, head;
     if (clean) { face = '<span style="font-size:34px" aria-hidden="true">🏮</span>'; head = st.ok ? "見破った！ うそは無い。" : "このページに、うそは無かった。"; }
     else if (st.ok) { face = `<div class="fuda">${monster(p, false)}<span class="stamp">封</span></div>`; head = `封じた！ ねじれ「${p.bad}」`; }
-    if (st.power) { head = `しおりの大技「${st.power}」！ ` + head; if (clean) face = `<span>${buddy(true)}</span>`; }
     else { face = `<div class="flee">${monster(p, boss)}</div>`; head = `逃げられた… 正しくは「${p.w[p.lie]}」`; }
+    if (st.power) { head = `しおりの大技「${st.power}」！ ` + head; if (clean) face = `<span>${buddy(true)}</span>`; }
     h += `<div class="text done">${clean ? p.w.join("") : words(p)}</div>` +
       `<div class="res${st.power ? " power" : ""}" id="res">${face}<p><b>${head}</b><br>${st.note ? st.note + "<br>" : ""}${p.why}</p></div>` +
       `<button class="btn go" id="next">${S.i < S.list.length - 1 ? "次のページへ" : "本を閉じる"}</button>`;
