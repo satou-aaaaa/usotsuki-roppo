@@ -128,6 +128,9 @@ try {
   await page.click("#back");
   check("取り戻した巻は本棚で光り、村に灯りが1つともる", (await page.locator('.spine.done[data-book="ken"]').count()) === 1 && (await page.locator(".town .win.lit").count()) === 1);
   check("本棚の相棒が覚えた技を見せる", (await page.textContent("#buddy")).includes("礎の灯"));
+  await page.click('.spine[data-book="ken"]'); await readOnce();
+  check("取り戻した巻を読み直しても、技をもう一度覚えたとは出ない", (await page.locator("#fin").count()) === 1 && (await page.locator("#learn").count()) === 0);
+  await page.click("#back");
   const kenMons = await page.evaluate(() => BOOKS[0].pages.filter((p) => p.lie >= 0).length);
   check("上の数字が封じた魔の数になる", (await page.textContent("#stat b")) === String(kenMons));
 
@@ -164,12 +167,13 @@ try {
   const tech = await page.evaluate(() => {
     const xs = learned(), keep = JSON.stringify(mem);
     const other = Array.from({ length: 300 }, () => techFor(BOOKS[2]));
-    const own = techFor(BOOKS[0]);
+    const random = Math.random; let own;
+    try { Math.random = () => 0.999999; own = Array.from({ length: 300 }, () => techFor(BOOKS[0])); } finally { Math.random = random; }
     mem.solved = {}; const none = techFor(BOOKS[2]); mem = JSON.parse(keep);
     return { xs, bad: other.filter((x) => !xs.includes(x)), kinds: new Set(other).size, own, none };
   });
-  check("覚えていない巻の大技は、覚えた技から選ぶ（300回）", tech.xs.length >= 2 && !tech.xs.includes("戒めの鎖") && tech.bad.length === 0 && tech.kinds === tech.xs.length, JSON.stringify(tech));
-  check("覚えた巻の大技はその巻の技、何も覚えていなければ「しおりの灯」", tech.own === "礎の灯" && tech.none === "しおりの灯", JSON.stringify(tech));
+  check("覚えていない巻の大技は、覚えた技から選ぶ（300回）", tech.xs.length >= 2 && !tech.xs.includes("戒めの鎖") && tech.bad.length === 0 && tech.kinds === tech.xs.length, JSON.stringify({ ...tech, own: [...new Set(tech.own)] }));
+  check("覚えた巻の大技はその巻の技（乱数をほかの技に寄せて300回）、何も覚えていなければ「しおりの灯」", tech.own.every((x) => x === "礎の灯") && tech.none === "しおりの灯", JSON.stringify({ ...tech, own: [...new Set(tech.own)] }));
 
   // 5. 記録はこの端末にだけ残り、開き直しても消えない
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem(KEY) || "{}"));
