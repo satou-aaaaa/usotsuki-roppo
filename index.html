@@ -6,6 +6,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="description" content="ねじれ文字に書き換えられた六法の本を、1ページずつ直して札に封じる学習ゲーム。">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0d1030">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="うそつき六法">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kaisei+Decol:wght@700&family=Zen+Kaku+Gothic+New:wght@400;700&display=swap">
 <style>
@@ -445,6 +451,8 @@ function cho() {
 }
 
 shelf();
+// ホーム画面に置けて、電波が無くても遊べるようにする（sw.js）。ファイルを直接開いたとき（file://）は使えないので何もしない
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("sw.js").catch(() => {});
 </script>
 </body>
 </html>

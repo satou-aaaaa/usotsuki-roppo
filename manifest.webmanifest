@@ -1,0 +1,17 @@
+{
+  "name": "うそつき六法",
+  "short_name": "うそつき六法",
+  "description": "ねじれ文字に書き換えられた六法の本を、1ページずつ直して札に封じる学習ゲーム",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d1030",
+  "theme_color": "#0d1030",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
