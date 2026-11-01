@@ -27,5 +27,7 @@ jobs:
       require_checks: |
         qa
         scan / scan
+      # 条文・画面の仕組みを変える PR は自動ではマージせず、CodeRabbit のレビューを読んでから手でマージ（AGENTS.md。2026-11-01 #9）
+      hold_paths: '^(index\.html|sw\.js|manifest\.webmanifest)$'
       dispatch: qa.yml
       recheck_main: false
