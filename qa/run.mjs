@@ -1,7 +1,8 @@
 // うそつき六法（封じの六法）の検査。index.html をブラウザで開き、ページの形と遊び方を確かめる。
 // 使い方: node qa/run.mjs   失敗があれば終了コード 1。結果は qa-report/report.md。
 import { chromium } from "playwright";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
+import http from "node:http";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -238,6 +239,40 @@ try {
   if ((await page.evaluate(() => document.documentElement.scrollWidth)) > 390) wide.push("封じ帳");
   check("スマホ幅で横にはみ出さない（本棚・札・答え合わせ・封じ帳）", wide.length === 0, wide.join(","));
   check("ページのエラーが無い", errors.length === 0, errors.join(" / "));
+
+  // 12. PWA：ホーム画面に置ける形（manifest・アイコン）と、一度開けば電波が無くても遊べる（sw.js）。http で開いて確かめる
+  const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".webmanifest": "application/manifest+json", ".png": "image/png" };
+  const server = http.createServer((req, res) => {
+    const rel = decodeURIComponent(new URL(req.url, "http://x").pathname).replace(/^\/+/, "") || "index.html";
+    const file = path.join(root, rel);
+    if (!file.startsWith(root) || !existsSync(file)) { res.writeHead(404); res.end(); return; }
+    res.writeHead(200, { "content-type": types[path.extname(file)] || "application/octet-stream" }); res.end(readFileSync(file));
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const base = `http://127.0.0.1:${server.address().port}/`;
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 800 } });
+  try {
+    const pw = await ctx.newPage();
+    const errPw = []; pw.on("pageerror", (e) => errPw.push(e.message));
+    await pw.goto(base);
+    const man = await pw.evaluate(async () => { const href = document.querySelector('link[rel="manifest"]')?.getAttribute("href"); return href ? (await fetch(href)).json() : null; });
+    const icons = man?.icons || [];
+    check("manifest に名前・開く場所・アプリ表示・192と512のアイコンがある", man && man.name === "うそつき六法" && man.start_url && man.display === "standalone"
+      && ["192x192", "512x512"].every((sz) => icons.some((i) => i.sizes === sz)) && icons.some((i) => i.purpose === "maskable"), JSON.stringify(man));
+    const iconOk = await pw.evaluate(async (list) => (await Promise.all(list.map((i) => fetch(i.src).then((r) => r.ok && r.headers.get("content-type") === "image/png")))).every(Boolean), icons);
+    check("アイコンの画像が取れる", iconOk);
+    await pw.evaluate(() => navigator.serviceWorker.ready);
+    await pw.reload(); await pw.waitForFunction(() => !!navigator.serviceWorker.controller);
+    check("sw.js が入り、画面を受け持つ", await pw.evaluate(() => !!navigator.serviceWorker.controller));
+    await ctx.setOffline(true);
+    const offErr = await pw.reload().then(() => "", (e) => e.message.split("\n")[0]);
+    check("電波が無くても本棚が開き、6冊並ぶ", !offErr && (await pw.locator(".spine").count()) === 6, offErr);
+    if (!offErr) await pw.click('.spine[data-book="ken"]');
+    check("電波が無くてもページが読める", (await pw.locator(".w").count()) >= 3);
+    const offErr2 = await pw.goto(base + "classic.html").then(() => "", (e) => e.message.split("\n")[0]);
+    check("電波が無くても前の版（classic.html）が開く", !offErr2 && (await pw.locator(".person").count()) === 1, offErr2);
+    check("PWA の確かめでページのエラーが無い", errPw.length === 0, errPw.join(" / "));
+  } finally { await ctx.close(); server.close(); }
 } finally {
   await browser.close();
 }
