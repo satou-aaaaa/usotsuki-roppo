@@ -242,10 +242,12 @@ try {
 
   // 12. PWA：ホーム画面に置ける形（manifest・アイコン）と、一度開けば電波が無くても遊べる（sw.js）。http で開いて確かめる
   const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".webmanifest": "application/manifest+json", ".png": "image/png" };
+  let down = false;   // true のあいだ、サーバーが 503 を返す
   const server = http.createServer((req, res) => {
+    if (down) { res.writeHead(503); res.end("down"); return; }
     const rel = decodeURIComponent(new URL(req.url, "http://x").pathname).replace(/^\/+/, "") || "index.html";
     const file = path.join(root, rel);
-    if (!file.startsWith(root) || !existsSync(file)) { res.writeHead(404); res.end(); return; }
+    if ((file !== root && !file.startsWith(root + path.sep)) || !existsSync(file)) { res.writeHead(404); res.end(); return; }
     res.writeHead(200, { "content-type": types[path.extname(file)] || "application/octet-stream" }); res.end(readFileSync(file));
   });
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
@@ -271,6 +273,10 @@ try {
     check("電波が無くてもページが読める", (await pw.locator(".w").count()) >= 3);
     const offErr2 = await pw.goto(base + "classic.html").then(() => "", (e) => e.message.split("\n")[0]);
     check("電波が無くても前の版（classic.html）が開く", !offErr2 && (await pw.locator(".person").count()) === 1, offErr2);
+    await ctx.setOffline(false); down = true;
+    const downErr = await pw.goto(base).then(() => "", (e) => e.message.split("\n")[0]);
+    check("サーバーが 503 を返しても、保存した本棚が開く", !downErr && (await pw.locator(".spine").count()) === 6, downErr);
+    down = false;
     check("PWA の確かめでページのエラーが無い", errPw.length === 0, errPw.join(" / "));
   } finally { await ctx.close(); server.close(); }
 } finally {
