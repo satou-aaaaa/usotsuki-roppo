@@ -31,7 +31,7 @@ node qa/run.mjs   # ページの形・並びの乱数・一画面一問の流れ
 ## 公開
 
 - GitHub Pages は `main` のルート（`/`）を公開する。PR の QA と Secret scan が ✅ になると `automerge.yml` が自動でマージする。止めたいときは下書きにするか、ラベル「自動マージしない」を付ける。
-- ページ（条文）を変える PR は、ラベル「自動マージしない」を付けて CodeRabbit のレビューを待ち、手でマージする直前に今の head へのレビューのスレッドを読み直す（2026-11-01 指摘を読む前にマージした。shared-workflows `incidents/2026-11-01-roppo-merged-before-review.md`）。
+- ページ（条文）か画面の仕組み（`index.html` の script・`sw.js`・`manifest.webmanifest`）を変える PR は、ラベル「自動マージしない」を付けて CodeRabbit のレビューを待ち、手でマージする直前に今の head へのレビューのスレッドを読み直す（2026-11-01 指摘を読む前にマージした。同日 PWA の #9 も自動マージでレビューが届かなかった。shared-workflows `incidents/2026-11-01-roppo-merged-before-review.md`）。
 
 ## 共通のきまり
 

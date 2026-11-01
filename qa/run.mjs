@@ -245,7 +245,7 @@ try {
   const server = http.createServer((req, res) => {
     const rel = decodeURIComponent(new URL(req.url, "http://x").pathname).replace(/^\/+/, "") || "index.html";
     const file = path.join(root, rel);
-    if (!file.startsWith(root) || !existsSync(file)) { res.writeHead(404); res.end(); return; }
+    if ((file !== root && !file.startsWith(root + path.sep)) || !existsSync(file)) { res.writeHead(404); res.end(); return; }
     res.writeHead(200, { "content-type": types[path.extname(file)] || "application/octet-stream" }); res.end(readFileSync(file));
   });
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
