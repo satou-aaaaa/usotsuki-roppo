@@ -119,6 +119,7 @@ try {
   check("正しく直したページは、どれも「封じた」か「見破った」になる（逃げられたと出ない）", heads.every((h) => /封じた|見破った/.test(h) && !h.includes("逃げられた")), heads.join(" / "));
   check("3ページ続けて直すと大技が出る（3・6ページ目だけ）", power.map((x) => !!x).join() === "false,false,true,false,false,true" && power[2].includes("しおりの大技「しおりの灯」"), power.join(" / "));
   check("1回目で6ページ直すと「続きを読む」が出る", (await page.textContent("#fin h2")).includes("6 / 10") && (await page.locator("#more").count()) === 1, await page.textContent("#fin h2"));
+  check("途中の区切り（6 / 10）では応援のひとことを出さない", (await page.locator(".ask").count()) === 0);
   await page.click("#more");
   const second = await page.evaluate(() => S.list.map((p) => p.id));
   check("続きは、まだのページ4つと大きな魔から始まる", await page.evaluate(() => S.list.filter((p) => !mem.solved[p.id]).length === 4));
@@ -126,11 +127,13 @@ try {
   check("全部直すと「巻を取り戻した」になる", (await page.textContent("#fin h2")).includes("憲法の巻を取り戻した"), second.join(","));
   check("全部直したら「逃がした魔を追う」「続きを読む」は出ない", (await page.locator("#chase, #more").count()) === 0);
   check("巻を取り戻すと、相棒が新しい技を覚える", (await page.textContent("#learn")).includes("礎の灯"));
+  check("巻を初めて取り戻した画面にだけ、応援のひとこと（Ko-fi へのただのリンク）が出る", (await page.locator("#askfin a").getAttribute("href")) === "https://ko-fi.com/satouaaaaa");
   await page.click("#back");
   check("取り戻した巻は本棚で光り、村に灯りが1つともる", (await page.locator('.spine.done[data-book="ken"]').count()) === 1 && (await page.locator(".town .win.lit").count()) === 1);
   check("本棚の相棒が覚えた技を見せる", (await page.textContent("#buddy")).includes("礎の灯"));
   await page.click('.spine[data-book="ken"]'); await readOnce();
   check("取り戻した巻を読み直しても、技をもう一度覚えたとは出ない", (await page.locator("#fin").count()) === 1 && (await page.locator("#learn").count()) === 0);
+  check("取り戻した巻を読み直しても、応援のひとことは出さない（何度も頼まない）", (await page.locator(".ask").count()) === 0);
   await page.click("#back");
   const kenMons = await page.evaluate(() => BOOKS[0].pages.filter((p) => p.lie >= 0).length);
   check("上の数字が封じた魔の数になる", (await page.textContent("#stat b")) === String(kenMons));
@@ -198,6 +201,7 @@ try {
   const buddyText = await page.textContent("#buddy");
   check("6冊そろうと相棒が金色に育ち、技が6つ", (await page.locator("#buddy .buddy-svg.st3").count()) === 1 && ["礎の灯", "結びの糸", "戒めの鎖", "算盤の風", "天秤の盾", "黙の帳"].every((x) => buddyText.includes(x)), buddyText);
   check("6冊すべて取り戻すと夜明けになり、村の灯りが6つ", (await page.locator("#dawn").count()) === 1 && (await page.evaluate(() => document.body.classList.contains("dawn"))) && (await page.locator(".town .win.lit").count()) === 6);
+  check("夜明けの画面に応援のひとことが出る", (await page.locator("#askdawn a").getAttribute("href").catch(() => null)) === "https://ko-fi.com/satouaaaaa");
 
   // 8. 記録が壊れていても、記録を拒むブラウザでも遊べる
   const p2 = await browser.newPage({ viewport: { width: 390, height: 800 } });
@@ -205,6 +209,7 @@ try {
   p2.on("pageerror", (e) => err2.push(e.message));
   await p2.addInitScript(() => { try { localStorage.setItem("roppo-seal-v1", "{こわれた"); } catch (e) {} });
   await p2.goto(url);
+  check("遊ぶ前（はじめの本棚）には応援のひとことを出さない", (await p2.locator(".ask").count()) === 0);
   check("記録が壊れていても本棚が出る", (await p2.locator(".spine").count()) === 6 && err2.length === 0, err2.join(" / "));
   await p2.close();
 

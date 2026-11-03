@@ -156,6 +156,8 @@ button{font:inherit}
 footer{display:grid;gap:6px;font-size:12px;opacity:.8}
 footer p{margin:0}
 footer a{color:var(--lamp)}
+.ask{font-size:13px;opacity:.85;border-top:1px dashed #ffffff22;padding-top:10px}
+.ask a{color:var(--lamp)}
 [hidden]{display:none!important}
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style>
@@ -339,7 +341,7 @@ function techFor(b) { const xs = learned(); return xs.includes(ARTS[b.id]) ? ART
 function shelf() {
   S = null; frame();
   const done = allDone();
-  let h = done ? '<div class="panel" id="dawn"><h2>夜明け！</h2><p>六法をすべて取り戻した。村じゅうに灯りがともった。</p></div>'
+  let h = done ? '<div class="panel" id="dawn"><h2>夜明け！</h2><p>六法をすべて取り戻した。村じゅうに灯りがともった。</p>' + ask("askdawn") + '</div>'
     : '<p class="prolog">夜のうちに、ねじれ文字が六法の言葉をうそに書き換えた。うその言葉を見つけ、正しい札で封じよう。</p>';
   const arts = learned();
   h += `<div class="buddy" id="buddy">${buddy(true)}<div><b>相棒のしおり</b><p>覚えた技：${arts.length ? arts.join("・") : "まだ無い（巻を取り戻すと覚える）"}</p><p>3ページ続けて直すと、大技が出る。</p></div></div>`;
@@ -422,6 +424,8 @@ function next() {
 }
 
 // 巻の終わり：封じた魔と逃がした魔。逃がしたぶんだけをすぐ追い直せる
+// 応援のひとこと：遊び終えて満足したときだけ（巻を初めて取り戻したとき・夜明け）出す。遊ぶ前や途中には出さない
+function ask(id) { return `<p class="ask" id="${id}">楽しめたら、<a href="https://ko-fi.com/satouaaaaa" target="_blank" rel="noopener noreferrer">Ko-fi でコーヒー1杯の応援</a>をもらえると、新しい巻づくりの励みになります（任意・遊ぶのはずっと無料）。</p>`; }
 function fin() {
   frame();
   const b = S.b, n = solvedIn(b), full = n === b.pages.length, lost = S.lost.slice();
@@ -431,7 +435,8 @@ function fin() {
     `<p>${S.list.length}ページ中 ${S.got.length}ページを一度で直した。${S.best >= 3 ? `れんぞく ${S.best}！` : ""}</p>` +
     (full && !S.wasFull ? `<p class="learn" id="learn">${buddy(true)}<span>相棒のしおりが、新しい技「${ARTS[b.id]}」を覚えた！</span></p>` : "") +
     (mons ? `<div class="mons">${mons}</div>` : "") +
-    `<div class="row">${lost.length ? '<button class="btn" id="chase">逃がした魔を追う</button>' : full ? "" : '<button class="btn" id="more">続きを読む</button>'}<button class="btn sub2" id="back">本棚へ</button></div></div>`;
+    `<div class="row">${lost.length ? '<button class="btn" id="chase">逃がした魔を追う</button>' : full ? "" : '<button class="btn" id="more">続きを読む</button>'}<button class="btn sub2" id="back">本棚へ</button></div>` +
+    (full && !S.wasFull ? ask("askfin") : "") + `</div>`;
   const c = $("chase"); if (c) c.addEventListener("click", () => openBook(b.id, lost));
   const m = $("more"); if (m) m.addEventListener("click", () => openBook(b.id));
   $("back").addEventListener("click", shelf);
