@@ -246,7 +246,10 @@ try {
   check("ページのエラーが無い", errors.length === 0, errors.join(" / "));
 
   // 13. やりこみ：古い記録を消さない・しおりに聞く・完封・実績・カレンダー（幅320pxの新しい画面で確かめる）
+  // QA_SHIFT_DAYS=n で「今日」を n 日ずらして通す（月の1日・月末をまたぐ日でも動くか。例：今日が11/4 なら QA_SHIFT_DAYS=-4 で11/1）
+  const shift = Number(process.env.QA_SHIFT_DAYS || 0);
   const q = await browser.newPage({ viewport: { width: 320, height: 760 } });
+  if (shift) await q.clock.setFixedTime(new Date(Date.now() + shift * 86400e3));
   const errQ = []; q.on("pageerror", (e) => errQ.push(e.message));
   await q.addInitScript(() => { if (!sessionStorage.getItem("qa-once")) { sessionStorage.setItem("qa-once", "1"); localStorage.setItem("roppo-seal-v1", JSON.stringify({ solved: { ken1: true }, days: [1], keep: 5 })); } });
   await q.goto(url);
@@ -327,7 +330,7 @@ try {
     mem = keep;
     return { n: ACH.length, uniq: new Set(ids).size === ids.length, kinds: [...kinds], none: none.filter((a) => a.done || a.cur).length, full: full.filter((a) => !a.done).map((a) => a.id), pr };
   });
-  check("実績は10〜14個で、id が重ならない", ach.n >= 10 && ach.n <= 14 && ach.uniq, String(ach.n));
+  check("実績はちょうど13個で、id が重ならない", ach.n === 13 && ach.uniq, String(ach.n));
   check("実績は腕前（完封）・集める（封じ帳・巻）・続ける（遊んだ日の合計）をまぜる", ["kan", "sealed", "books", "days"].every((k) => ach.kinds.includes(k)), ach.kinds.join(","));
   check("実績は記録から数える：何も無ければ0、全部そろえば全部とれる", ach.none === 0 && ach.full.length === 0, JSON.stringify(ach.full));
   check("遊んだ日は合計で数え、0ページの日は数えない（進み具合 2/3・完封 2/3）", ach.pr.d3 === "2/3" && ach.pr.kan3 === "2/3" && ach.pr.kan1 === "1/1", JSON.stringify(ach.pr));
@@ -351,8 +354,9 @@ try {
     mem.days = { [y1]: 1 }; calView(m0); out.s1 = document.getElementById("streak")?.textContent || "";
     mem.days = { [y1]: 6, [t]: 12, [prevDay(prevDay(t))]: 0 }; calView(m0);
     out.s2 = document.getElementById("streak")?.textContent || "";
-    out.lv = [y1, t].map((d) => document.querySelector(`#cal [data-day="${d}"]`)?.className.match(/l\d/)?.[0]);
-    out.only = document.getElementById("prevm").disabled;
+    // きのうが前の月（今日が1日）でも、その日の月まで戻して見る
+    out.lv = [y1, t].map((d) => { calView(d.slice(0, 7)); return document.querySelector(`#cal [data-day="${d}"]`)?.className.match(/l\d/)?.[0]; });
+    calView(y1.slice(0, 7)); out.only = document.getElementById("prevm").disabled;
     out.text = document.getElementById("calview").textContent;
     out.sw = document.documentElement.scrollWidth;
     out.streak = [streakOf({ "2026-10-31": 1, "2026-11-01": 2 }, "2026-11-01"), streakOf({ "2026-10-30": 1, "2026-11-01": 2 }, "2026-11-01"), streakOf({ "2026-10-31": 1 }, "2026-11-01"), streakOf({ "2026-10-30": 1 }, "2026-11-01")].join();

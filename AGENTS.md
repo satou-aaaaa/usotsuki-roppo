@@ -14,6 +14,7 @@ bash scripts/setup.sh   # Node.js（版は .nvmrc）を確かめ、検査の依�
 
 ```bash
 node qa/run.mjs   # ページの形・並びの乱数・一画面一問の流れ・封じる/逃げる・追い直し・記録・夜明け・スマホ幅・エラーを見る（CI の QA と同じ）
+QA_SHIFT_DAYS=27 node qa/run.mjs   # カレンダー・日付を変えたときは、「今日」をずらして月の1日・月末をまたぐ日でも一度通す
 ```
 
 ## このリポジトリの決まり
