@@ -163,7 +163,7 @@ try {
     const keep = { S, mem: JSON.stringify(mem) }; const out = [];
     S = { b: BOOKS[2], list: BOOKS[2].pages.slice(), i: 0, st: null, cards: null, got: [], lost: [], streak: 0, best: 0, wasFull: false };
     for (const ok of [true, true, false, true, true, true]) { finish(ok, null); out.push(S.st.power ? "大技" : "-"); S.i++; }
-    S = keep.S; mem = JSON.parse(keep.mem); save(); return out.join(",");
+    S = keep.S; mem = JSON.parse(keep.mem); localStorage.setItem(KEY, keep.mem); return out.join(",");
   });
   check("間違えるとしおりの力が0に戻る（直す2→間違い→直す2では大技なし、3つ目で出る）", resetSeq === "-,-,-,-,-,大技", resetSeq);
 
@@ -284,7 +284,7 @@ try {
     let k = 0, wrongDone = false;
     while ((await q.locator("#fin").count()) === 0) {
       if (opt.hint && k === 0) await q.click("#shiori");
-      if (opt.hint && k === 1) opt.noShiori = (await q.locator("#shiori").count()) === 0;
+      if (k === 1) opt.noShiori = (await q.locator("#shiori").count()) === 0;
       const lie = await q.evaluate(() => S.list[S.i].lie);
       const w = opt.wrong && !wrongDone && lie >= 0; if (w) wrongDone = true;
       await solveQ(w); await q.click("#next"); k++;
@@ -295,10 +295,11 @@ try {
   await q.click('.spine[data-book="ken"]');
   const hp = await q.evaluate(() => S.list[0]);
   await q.click("#shiori");
-  const hintUi = await q.evaluate(() => ({ ok: [...document.querySelectorAll(".text .w.okw")].map((x) => x.tagName), want: hintWords(S.list[0]).length, says: document.querySelector(".q").textContent }));
-  check("しおりに聞くと、正しい言葉の一部が緑になり、押せなくなる", hintUi.ok.length === hintUi.want && hintUi.ok.every((t) => t === "SPAN") && hintUi.says.includes("緑"), JSON.stringify(hintUi));
+  const hintUi = await q.evaluate(() => { const ws = [...document.querySelectorAll(".text .w")], p = S.list[0];
+    return { ok: [...document.querySelectorAll(".text .w.okw")].map((x) => x.tagName), green: ws.map((x, k) => x.classList.contains("okw") ? k : -1).filter((k) => k >= 0).join(), want: hintWords(p).join(), lieGreen: p.lie >= 0 && ws[p.lie].classList.contains("okw"), says: document.querySelector(".q").textContent }; });
+  check("しおりに聞くと、hintWords の言葉だけが緑になり押せなくなる（うその言葉は緑にしない）", hintUi.ok.length && hintUi.green === hintUi.want && !hintUi.lieGreen && hintUi.ok.every((t) => t === "SPAN") && hintUi.says.includes("緑"), JSON.stringify(hintUi));
   const after = await runQ();
-  check("しおりに聞けるのは1回に1度（次のページからは出ない）", await q.evaluate(() => S === null || S.hint === 0));
+  check("しおりに聞けるのは1回に1度（次のページからは出ない）", after.noShiori === true && await q.evaluate(() => S === null || S.hint === 0), JSON.stringify({ noShiori: after.noShiori }));
   check("しおりに聞いた回は、全部正しくても完封にならず、条件を一言出す", (await q.locator("#kanpu").count()) === 0 && (await q.textContent("#kanhint")).includes("しおりに聞かずに") && await q.evaluate(() => !mem.kanpu.ken));
   const newAch = await q.textContent("#newach").catch(() => "");
   check("新しくとれた実績を、結果の画面に小さく「🏅 実績：」で出す", newAch.startsWith("🏅 実績：") && newAch.includes("はじめての封印"), newAch);
@@ -310,12 +311,36 @@ try {
   check("しおりに聞かず6ページを一度で直すと「完封！」になり、記録に残る", kp.includes("完封") && kp.includes("印が付いた") && await q.evaluate(() => mem.kanpu.ken === 1), kp);
   check("一度知らせた実績は、次の結果ではもう出さない", !((await q.textContent("#newach").catch(() => "")).includes("はじめての封印")));
   await q.click("#back");
+  // 別のタブ（古い画面）の上書き：タブAが完封を保存したあと、前から開いていたタブB（記録を読む前の古い mem）でまちがえても、
+  // 完封・封印・実績・その日の数を消さない。タブBは同じ localStorage を使う画面で、mem だけ古いものにして作る
+  {
+    const snap = () => q.evaluate(() => { const m = JSON.parse(localStorage.getItem(KEY)); return { kan: m.kanpu.ken, solved: Object.keys(m.solved).length, ach: Object.keys(m.ach).length, day: m.days[today()] || 0 }; });
+    const want = await snap();
+    await q.evaluate(() => { mem = fresh(); shelf(); });
+    await q.click('.spine[data-book="ken"]');
+    const lie = await q.evaluate(() => S.list[S.i].lie);
+    await q.click(lie >= 0 ? `button.w:not([data-k="${lie}"])` : `.w[data-k="0"]`);
+    const got = await snap();
+    check("古いタブでまちがえて保存しても、別のタブが残した完封・封印・実績・その日の数を消さない", got.kan === 1 && got.solved >= want.solved && got.ach >= want.ach && got.day >= want.day, JSON.stringify({ want, got }));
+    // 記録が読めない形になっていても、手元の進み具合を捨てない
+    const keepMine = await q.evaluate(() => { const was = localStorage.getItem(KEY); localStorage.setItem(KEY, "{こわれた"); mem.solved.qaX = true; save();
+      const ok = JSON.parse(localStorage.getItem(KEY)).solved.qaX === true && mem.kanpu.ken === 1; localStorage.setItem(KEY, was); mem = load(); shelf(); return ok; });
+    check("記録が読めない形になっていても、保存は手元の進み具合を残す", keepMine);
+  }
   check("完封した巻の背に「完」の印が付く", (await q.locator('.spine[data-book="ken"] .kan').count()) === 1 && (await q.locator(".spine .kan").count()) === 1);
   // まちがえた回・逃がした魔を追う回は完封にならない
   await q.click('.spine[data-book="min"]'); await runQ({ wrong: true });
   check("まちがえた回は完封にならず「6ページを一度で直すと完封」と出る", (await q.locator("#kanpu").count()) === 0 && (await q.textContent("#kanhint")).includes("完封") && await q.evaluate(() => !mem.kanpu.min));
   await q.click("#chase"); await runQ();
   check("逃がした魔を追う回（6ページでない）は完封にならない", (await q.locator("#kanpu, #kanhint").count()) === 0 && await q.evaluate(() => !mem.kanpu.min));
+  // 6ページ全部まちがえたあとの追い直し（6ページ）も完封にならない
+  await q.click("#back"); await q.click('.spine[data-book="mso"]');
+  while ((await q.locator("#fin").count()) === 0) {
+    const lie = await q.evaluate(() => S.list[S.i].lie);
+    await q.click(lie >= 0 ? `button.w:not([data-k="${lie}"])` : `.w[data-k="0"]`); await q.click("#next");
+  }
+  await q.click("#chase"); const ch6 = await q.evaluate(() => S.list.length); await runQ();
+  check("6ページ全部まちがえたあとの追い直し（6ページ）も完封にならない", ch6 === 6 && (await q.locator("#kanpu").count()) === 0 && await q.evaluate(() => !mem.kanpu.mso), String(ch6));
   await q.click("#back");
 
   // 実績：10〜14個・腕前/集める/続けるをまぜる・いまの記録から数える
@@ -372,7 +397,7 @@ try {
   // 押せる所の高さ（44px以上）とキーで選んだときの枠（2px以上）
   const small = [], noRing = [];
   const measure = async (where) => {
-    for (const r of await q.evaluate(() => [...document.querySelectorAll("button, .btn, a.btn")].filter((x) => x.offsetParent && !x.classList.contains("w")).map((x) => ({ t: x.id || x.className || x.textContent.slice(0, 6), h: x.getBoundingClientRect().height }))))
+    for (const r of await q.evaluate(() => [...document.querySelectorAll("button, .btn, a.btn")].filter((x) => x.offsetParent).map((x) => ({ t: x.id || x.className || x.textContent.slice(0, 6), h: x.getBoundingClientRect().height }))))
       if (r.h < 44) small.push(`${where}:${r.t}:${Math.round(r.h)}`);
     await q.keyboard.press("Shift");
     for (const r of await q.evaluate(() => [...document.querySelectorAll("button")].filter((x) => x.offsetParent && !x.disabled).map((x) => { x.focus(); const o = getComputedStyle(x); return { t: x.id || x.className, ok: x.matches(":focus-visible") && parseFloat(o.outlineWidth) >= 2 && o.outlineStyle !== "none" }; })))
@@ -384,7 +409,7 @@ try {
   await q.click('.spine[data-book="sho"]'); await measure("ページ");
   const lie0 = await q.evaluate(() => S.list[S.i].lie);
   if (lie0 >= 0) { await q.click(`.w[data-k="${lie0}"]`); await measure("札"); }
-  check("押せる所（本棚・実績・カレンダー・ページ・札）は高さ44px以上（幅320px）", small.length === 0, small.join(" / "));
+  check("押せる所（本棚・実績・カレンダー・ページの言葉・札）は高さ44px以上（幅320px）", small.length === 0, small.join(" / "));
   check("キーで選ぶと、どのボタンにも2px以上の枠が出る", noRing.length === 0, noRing.join(" / "));
   check("やりこみの確かめでページのエラーが無い", errQ.length === 0, errQ.join(" / "));
   await q.close();
