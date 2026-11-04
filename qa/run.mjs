@@ -163,9 +163,27 @@ try {
     const keep = { S, mem: JSON.stringify(mem) }; const out = [];
     S = { b: BOOKS[2], list: BOOKS[2].pages.slice(), i: 0, st: null, cards: null, got: [], lost: [], streak: 0, best: 0, wasFull: false };
     for (const ok of [true, true, false, true, true, true]) { finish(ok, null); out.push(S.st.power ? "大技" : "-"); S.i++; }
-    S = keep.S; mem = JSON.parse(keep.mem); save(); return out.join(",");
+    S = keep.S; mem = JSON.parse(keep.mem); localStorage.setItem(KEY, keep.mem); return out.join(",");
   });
   check("間違えるとしおりの力が0に戻る（直す2→間違い→直す2では大技なし、3つ目で出る）", resetSeq === "-,-,-,-,-,大技", resetSeq);
+
+  // 4b2. 別のタブとの記録：同じ日のページ数は足し合わせ、別のタブでそろえた巻では「新しい技」を出さない
+  const tabs = await page.evaluate(() => {
+    const keep = { S, mem: JSON.stringify(mem) }, b = BOOKS[3], d = today();
+    const other = JSON.parse(keep.mem); other.days[d] = (other.days[d] || 0) + 6; for (const p of b.pages) other.solved[p.id] = true;
+    mem = JSON.parse(keep.mem); for (const p of b.pages) delete mem.solved[p.id];
+    localStorage.setItem(KEY, JSON.stringify(other));
+    S = { b, list: [b.pages[0]], i: 0, st: null, cards: null, got: [], lost: [], streak: 0, best: 0 };
+    const before = other.days[d]; finish(true, null); const days = mem.days[d];
+    next(); const learnOther = !!document.querySelector("#learn");
+    mem = JSON.parse(keep.mem); for (const p of b.pages) delete mem.solved[p.id]; for (const p of b.pages.slice(1)) mem.solved[p.id] = true; localStorage.setItem(KEY, JSON.stringify(mem));
+    S = { b, list: [b.pages[0]], i: 0, st: null, cards: null, got: [], lost: [], streak: 0, best: 0 };
+    finish(true, null); next(); const learnOwn = !!document.querySelector("#learn");
+    S = keep.S; mem = JSON.parse(keep.mem); localStorage.setItem(KEY, keep.mem);
+    return { days, before, learnOther, learnOwn };
+  });
+  check("別のタブで同じ日に読んだページ数に、このタブの1ページを足す（上書きしない）", tabs.days === tabs.before + 1, JSON.stringify(tabs));
+  check("別のタブでそろえた巻では「新しい技」を出さず、この回の1ページでそろえたときは出す", !tabs.learnOther && tabs.learnOwn, JSON.stringify(tabs));
 
   // 4c. 大技の名前（乱数）：まだ技を覚えていない巻では、覚えた技の中から選ぶ。300回作って毎回確かめる
   const tech = await page.evaluate(() => {
@@ -244,6 +262,179 @@ try {
   if ((await page.evaluate(() => document.documentElement.scrollWidth)) > 390) wide.push("封じ帳");
   check("スマホ幅で横にはみ出さない（本棚・札・答え合わせ・封じ帳）", wide.length === 0, wide.join(","));
   check("ページのエラーが無い", errors.length === 0, errors.join(" / "));
+
+  // 13. やりこみ：古い記録を消さない・しおりに聞く・完封・実績・カレンダー（幅320pxの新しい画面で確かめる）
+  // QA_SHIFT_DAYS=n で「今日」を n 日ずらして通す（月の1日・月末をまたぐ日でも動くか。例：今日が11/4 なら QA_SHIFT_DAYS=-4 で11/1）
+  const shift = Number(process.env.QA_SHIFT_DAYS || 0);
+  const q = await browser.newPage({ viewport: { width: 320, height: 760 } });
+  if (shift) await q.clock.setFixedTime(new Date(Date.now() + shift * 86400e3));
+  const errQ = []; q.on("pageerror", (e) => errQ.push(e.message));
+  await q.addInitScript(() => { if (!sessionStorage.getItem("qa-once")) { sessionStorage.setItem("qa-once", "1"); localStorage.setItem("roppo-seal-v1", JSON.stringify({ solved: { ken1: true }, days: [1], keep: 5 })); } });
+  await q.goto(url);
+  const old = await q.evaluate(() => ({ s: mem.solved.ken1, keep: mem.keep, kinds: ["days", "kanpu", "ach"].every((k) => mem[k] && typeof mem[k] === "object" && !Array.isArray(mem[k])) }));
+  check("古い記録（solved だけ・形のちがう入れ物）を読んでも、直したページと知らない入れ物を消さず、足りない入れ物を補う", old.s === true && old.keep === 5 && old.kinds, JSON.stringify(old));
+  await q.evaluate(() => { localStorage.removeItem(KEY); mem = load(); shelf(); });
+
+  const jst = await q.evaluate(() => [dayOf(Date.UTC(2026, 10, 4, 14, 59)), dayOf(Date.UTC(2026, 10, 4, 15, 0)), prevDay("2026-11-01"), prevDay("2028-03-01")]);
+  check("日付は日本時間で数える（UTC 15時で次の日・月や閏年をまたいで前の日）", jst.join() === "2026-11-04,2026-11-05,2026-10-31,2028-02-29", jst.join());
+
+  // しおりに聞く：どのページでも、うその言葉は緑にせず、候補を2つ以上残す。同じページは何度聞いても同じ（500回）
+  const hw = await q.evaluate(() => {
+    const bad = [];
+    for (const p of ALL) {
+      const h0 = JSON.stringify(hintWords(p));
+      for (let i = 0; i < 500; i++) if (JSON.stringify(hintWords(p)) !== h0) { bad.push(p.id + ":ちがう"); break; }
+      const h = hintWords(p), left = p.w.length - h.length;
+      if (!h.length || h.includes(p.lie) || new Set(h).size !== h.length || h.some((k) => k < 0 || k >= p.w.length) || left < 2) bad.push(p.id);
+    }
+    return bad;
+  });
+  check("しおりは、うその言葉を緑にせず候補を2つ以上残し、同じページは毎回同じ言葉を緑にする（60ページ×500回）", hw.length === 0, hw.join(","));
+
+  const solveQ = async (wrong) => {
+    const p = await q.evaluate(() => { const p = S.list[S.i]; return { lie: p.lie, right: p.lie >= 0 ? p.w[p.lie] : null }; });
+    if (wrong && p.lie >= 0) { await q.click(`button.w:not([data-k="${p.lie}"])`); }
+    else if (p.lie < 0) await q.click("#none");
+    else { await q.click(`.w[data-k="${p.lie}"]`); await q.locator(".card", { hasText: p.right }).first().click(); }
+    return p;
+  };
+  const runQ = async (opt = {}) => {
+    let k = 0, wrongDone = false;
+    while ((await q.locator("#fin").count()) === 0) {
+      if (opt.hint && k === 0) await q.click("#shiori");
+      if (k === 1) opt.noShiori = (await q.locator("#shiori").count()) === 0;
+      const lie = await q.evaluate(() => S.list[S.i].lie);
+      const w = opt.wrong && !wrongDone && lie >= 0; if (w) wrongDone = true;
+      await solveQ(w); await q.click("#next"); k++;
+    }
+    return { k, ...opt };
+  };
+  // 1回目：しおりに聞く → 緑の言葉は押せず、2ページ目からは出ない。全部正しくても完封にならない
+  await q.click('.spine[data-book="ken"]');
+  const hp = await q.evaluate(() => S.list[0]);
+  await q.click("#shiori");
+  const hintUi = await q.evaluate(() => { const ws = [...document.querySelectorAll(".text .w")], p = S.list[0];
+    return { ok: [...document.querySelectorAll(".text .w.okw")].map((x) => x.tagName), green: ws.map((x, k) => x.classList.contains("okw") ? k : -1).filter((k) => k >= 0).join(), want: hintWords(p).join(), lieGreen: p.lie >= 0 && ws[p.lie].classList.contains("okw"), says: document.querySelector(".q").textContent }; });
+  check("しおりに聞くと、hintWords の言葉だけが緑になり押せなくなる（うその言葉は緑にしない）", hintUi.ok.length && hintUi.green === hintUi.want && !hintUi.lieGreen && hintUi.ok.every((t) => t === "SPAN") && hintUi.says.includes("緑"), JSON.stringify(hintUi));
+  const after = await runQ();
+  check("しおりに聞けるのは1回に1度（次のページからは出ない）", after.noShiori === true && await q.evaluate(() => S === null || S.hint === 0), JSON.stringify({ noShiori: after.noShiori }));
+  check("しおりに聞いた回は、全部正しくても完封にならず、条件を一言出す", (await q.locator("#kanpu").count()) === 0 && (await q.textContent("#kanhint")).includes("しおりに聞かずに") && await q.evaluate(() => !mem.kanpu.ken));
+  const newAch = await q.textContent("#newach").catch(() => "");
+  check("新しくとれた実績を、結果の画面に小さく「🏅 実績：」で出す", newAch.startsWith("🏅 実績：") && newAch.includes("はじめての封印"), newAch);
+  check("その日に読んだページ数がカレンダー用に記録される", await q.evaluate((n) => mem.days[today()] === n, after.k), String(after.k));
+  check("結果の画面が幅320pxで横にはみ出さない", (await q.evaluate(() => document.documentElement.scrollWidth)) <= 320);
+  // 2回目：しおりに聞かず全部一度で直す → 完封。巻の背に「完」
+  await q.click("#more"); await runQ();
+  const kp = await q.textContent("#kanpu").catch(() => "");
+  check("しおりに聞かず6ページを一度で直すと「完封！」になり、記録に残る", kp.includes("完封") && kp.includes("印が付いた") && await q.evaluate(() => mem.kanpu.ken === 1), kp);
+  check("一度知らせた実績は、次の結果ではもう出さない", !((await q.textContent("#newach").catch(() => "")).includes("はじめての封印")));
+  await q.click("#back");
+  // 別のタブ（古い画面）の上書き：タブAが完封を保存したあと、前から開いていたタブB（記録を読む前の古い mem）でまちがえても、
+  // 完封・封印・実績・その日の数を消さない。タブBは同じ localStorage を使う画面で、mem だけ古いものにして作る
+  {
+    const snap = () => q.evaluate(() => { const m = JSON.parse(localStorage.getItem(KEY)); return { kan: m.kanpu.ken, solved: Object.keys(m.solved).length, ach: Object.keys(m.ach).length, day: m.days[today()] || 0 }; });
+    const want = await snap();
+    await q.evaluate(() => { mem = fresh(); shelf(); });
+    await q.click('.spine[data-book="ken"]');
+    const lie = await q.evaluate(() => S.list[S.i].lie);
+    await q.click(lie >= 0 ? `button.w:not([data-k="${lie}"])` : `.w[data-k="0"]`);
+    const got = await snap();
+    check("古いタブでまちがえて保存しても、別のタブが残した完封・封印・実績・その日の数を消さない", got.kan === 1 && got.solved >= want.solved && got.ach >= want.ach && got.day >= want.day, JSON.stringify({ want, got }));
+    // 記録が読めない形になっていても、手元の進み具合を捨てない
+    const keepMine = await q.evaluate(() => { const was = localStorage.getItem(KEY); localStorage.setItem(KEY, "{こわれた"); mem.solved.qaX = true; save();
+      const ok = JSON.parse(localStorage.getItem(KEY)).solved.qaX === true && mem.kanpu.ken === 1; localStorage.setItem(KEY, was); mem = load(); shelf(); return ok; });
+    check("記録が読めない形になっていても、保存は手元の進み具合を残す", keepMine);
+  }
+  check("完封した巻の背に「完」の印が付く", (await q.locator('.spine[data-book="ken"] .kan').count()) === 1 && (await q.locator(".spine .kan").count()) === 1);
+  // まちがえた回・逃がした魔を追う回は完封にならない
+  await q.click('.spine[data-book="min"]'); await runQ({ wrong: true });
+  check("まちがえた回は完封にならず「6ページを一度で直すと完封」と出る", (await q.locator("#kanpu").count()) === 0 && (await q.textContent("#kanhint")).includes("完封") && await q.evaluate(() => !mem.kanpu.min));
+  await q.click("#chase"); await runQ();
+  check("逃がした魔を追う回（6ページでない）は完封にならない", (await q.locator("#kanpu, #kanhint").count()) === 0 && await q.evaluate(() => !mem.kanpu.min));
+  // 6ページ全部まちがえたあとの追い直し（6ページ）も完封にならない
+  await q.click("#back"); await q.click('.spine[data-book="mso"]');
+  while ((await q.locator("#fin").count()) === 0) {
+    const lie = await q.evaluate(() => S.list[S.i].lie);
+    await q.click(lie >= 0 ? `button.w:not([data-k="${lie}"])` : `.w[data-k="0"]`); await q.click("#next");
+  }
+  await q.click("#chase"); const ch6 = await q.evaluate(() => S.list.length); await runQ();
+  check("6ページ全部まちがえたあとの追い直し（6ページ）も完封にならない", ch6 === 6 && (await q.locator("#kanpu").count()) === 0 && await q.evaluate(() => !mem.kanpu.mso), String(ch6));
+  await q.click("#back");
+
+  // 実績：10〜14個・腕前/集める/続けるをまぜる・いまの記録から数える
+  const ach = await q.evaluate(() => {
+    const keep = mem, ids = ACH.map((a) => a.id), kinds = new Set(ACH.map((a) => a.of));
+    const none = achNow(fresh());
+    const all = fresh(); ALL.forEach((p) => { all.solved[p.id] = true; }); BOOKS.forEach((b) => { all.kanpu[b.id] = 1; });
+    for (let i = 0, d = "2026-11-04"; i < 15; i++, d = prevDay(d)) all.days[d] = 1;
+    const full = achNow(all);
+    const part = fresh(); part.days = { "2026-11-01": 3, "2026-11-03": 1, "2026-11-04": 0 }; part.kanpu = { ken: 1, sho: 1 };
+    const pr = Object.fromEntries(achNow(part).map((a) => [a.id, `${a.cur}/${a.goal}`]));
+    mem = keep;
+    return { n: ACH.length, uniq: new Set(ids).size === ids.length, kinds: [...kinds], none: none.filter((a) => a.done || a.cur).length, full: full.filter((a) => !a.done).map((a) => a.id), pr };
+  });
+  check("実績はちょうど13個で、id が重ならない", ach.n === 13 && ach.uniq, String(ach.n));
+  check("実績は腕前（完封）・集める（封じ帳・巻）・続ける（遊んだ日の合計）をまぜる", ["kan", "sealed", "books", "days"].every((k) => ach.kinds.includes(k)), ach.kinds.join(","));
+  check("実績は記録から数える：何も無ければ0、全部そろえば全部とれる", ach.none === 0 && ach.full.length === 0, JSON.stringify(ach.full));
+  check("遊んだ日は合計で数え、0ページの日は数えない（進み具合 2/3・完封 2/3）", ach.pr.d3 === "2/3" && ach.pr.kan3 === "2/3" && ach.pr.kan1 === "1/1", JSON.stringify(ach.pr));
+  await q.click("#achbtn");
+  const av = await q.evaluate(() => ({ rows: document.querySelectorAll("#achview .ach").length, prog: [...document.querySelectorAll("#achview .ach.no .pr")].every((x) => /^\d+\/\d+$/.test(x.textContent)), got: [...document.querySelectorAll("#achview .ach.got .pr")].every((x) => x.textContent === "✓"), sw: document.documentElement.scrollWidth }));
+  check("実績の画面に全部並び、まだのものは「いま/目標」、とれたものは ✓", av.rows === ach.n && av.prog && av.got, JSON.stringify(av));
+  check("実績の画面が幅320pxで横にはみ出さない", av.sw <= 320, String(av.sw));
+  await q.click("#back");
+
+  // カレンダー：遊んだ日に灯り（読んだ数で3段）・前の月へ戻れる・続けた日は1以上のときだけ・休んだ日を責めない
+  const cal = await q.evaluate(() => {
+    const t = today(), y1 = prevDay(t), m0 = t.slice(0, 7);
+    const back = new Date(Date.UTC(+m0.slice(0, 4), +m0.slice(5, 7) - 2, 10)).toISOString().slice(0, 10);
+    const out = {};
+    mem.days = { [back]: 3 }; calView(m0);
+    out.noStreak = !document.getElementById("streak");
+    out.prevOn = !document.getElementById("prevm").disabled; out.nextOff = document.getElementById("nextm").disabled;
+    document.getElementById("prevm").click();
+    out.back = document.querySelector(`#cal [data-day="${back}"]`)?.className || "";
+    out.firstOff = document.getElementById("prevm").disabled;
+    mem.days = { [y1]: 1 }; calView(m0); out.s1 = document.getElementById("streak")?.textContent || "";
+    mem.days = { [y1]: 6, [t]: 12, [prevDay(prevDay(t))]: 0 }; calView(m0);
+    out.s2 = document.getElementById("streak")?.textContent || "";
+    // きのうが前の月（今日が1日）でも、その日の月まで戻して見る
+    out.lv = [y1, t].map((d) => { calView(d.slice(0, 7)); return document.querySelector(`#cal [data-day="${d}"]`)?.className.match(/l\d/)?.[0]; });
+    calView(y1.slice(0, 7)); out.only = document.getElementById("prevm").disabled;
+    out.text = document.getElementById("calview").textContent;
+    out.sw = document.documentElement.scrollWidth;
+    out.streak = [streakOf({ "2026-10-31": 1, "2026-11-01": 2 }, "2026-11-01"), streakOf({ "2026-10-30": 1, "2026-11-01": 2 }, "2026-11-01"), streakOf({ "2026-10-31": 1 }, "2026-11-01"), streakOf({ "2026-10-30": 1 }, "2026-11-01")].join();
+    return out;
+  });
+  check("遊んでいない日が続いたら、続けた日は出さない", cal.noStreak);
+  check("前の月へ戻れて、前の月の遊んだ日にも灯りが出る（今月より先へは進めない）", cal.prevOn && cal.nextOff && cal.back.includes("l1") && cal.firstOff, JSON.stringify(cal));
+  check("続けた日は1以上なら出し（きのうまで遊んだ日も1）、月をまたいでも数える", cal.s1.includes("1日") && cal.s2.includes("2日") && cal.streak === "2,1,1,0", JSON.stringify({ s1: cal.s1, s2: cal.s2, st: cal.streak }));
+  check("灯りは読んだページの数で明るくなる（6ページで2段・12ページで3段）", cal.lv.join() === "l2,l3" && cal.only, cal.lv.join());
+  check("カレンダーに休んだ日を責める言葉が無い", !/休|さぼ|サボ|途切|残念|忘れ/.test(cal.text), cal.text);
+  check("カレンダーの画面が幅320pxで横にはみ出さない", cal.sw <= 320, String(cal.sw));
+
+  // 押せる所の高さ（44px以上）とキーで選んだときの枠（2px以上）
+  const small = [], noRing = [];
+  const measure = async (where) => {
+    for (const r of await q.evaluate(() => [...document.querySelectorAll("button, .btn, a.btn")].filter((x) => x.offsetParent).map((x) => ({ t: x.id || x.className || x.textContent.slice(0, 6), h: x.getBoundingClientRect().height }))))
+      if (r.h < 44) small.push(`${where}:${r.t}:${Math.round(r.h)}`);
+    await q.keyboard.press("Shift");
+    for (const r of await q.evaluate(() => [...document.querySelectorAll("button")].filter((x) => x.offsetParent && !x.disabled).map((x) => { x.focus(); const o = getComputedStyle(x); return { t: x.id || x.className, ok: x.matches(":focus-visible") && parseFloat(o.outlineWidth) >= 2 && o.outlineStyle !== "none" }; })))
+      if (!r.ok) noRing.push(`${where}:${r.t}`);
+  };
+  await q.evaluate(() => { mem.days = {}; shelf(); }); await measure("本棚");
+  await q.click("#achbtn"); await measure("実績"); await q.click("#back");
+  await q.click("#calbtn"); await measure("カレンダー"); await q.click("#back");
+  await q.click('.spine[data-book="sho"]'); await measure("ページ");
+  const lie0 = await q.evaluate(() => S.list[S.i].lie);
+  if (lie0 >= 0) { await q.click(`.w[data-k="${lie0}"]`); await measure("札"); }
+  check("押せる所（本棚・実績・カレンダー・ページの言葉・札）は高さ44px以上（幅320px）", small.length === 0, small.join(" / "));
+  check("キーで選ぶと、どのボタンにも2px以上の枠が出る", noRing.length === 0, noRing.join(" / "));
+  check("やりこみの確かめでページのエラーが無い", errQ.length === 0, errQ.join(" / "));
+  await q.close();
+
+  const src = readFileSync(path.join(root, "index.html"), "utf8");
+  check("Math.random は札・ページの並びと大技の名前の2か所だけ（増やさない）", (src.match(/Math\.random/g) || []).length === 2);
+  check("sort の比較の中で乱数を引かない", !/sort\([^)]*(random|r\(\))/.test(src));
 
   // 12. PWA：ホーム画面に置ける形（manifest・アイコン）と、一度開けば電波が無くても遊べる（sw.js）。http で開いて確かめる
   const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".webmanifest": "application/manifest+json", ".png": "image/png" };

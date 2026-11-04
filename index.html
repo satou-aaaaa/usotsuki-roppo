@@ -90,7 +90,7 @@ button{font:inherit}
 .chip{font-size:12px;background:#2a2042;color:#e8dbff;border-radius:999px;padding:1px 10px}
 .streak{font-size:12px;color:#a8541a;font-weight:700;margin:0}
 .text{font-family:var(--display);font-size:20px;line-height:2.15;letter-spacing:.02em}
-.w{all:unset;cursor:pointer;border-bottom:2px dotted #b9a983;padding:0 1px;border-radius:3px}
+.w{all:unset;cursor:pointer;border-bottom:2px dotted #b9a983;padding:0 1px;border-radius:3px;display:inline-block;min-height:44px;box-sizing:border-box;vertical-align:bottom}
 .w:hover{background:#efe2bf}
 .w.lie{color:var(--lie);display:inline-block;animation:twist 1.4s ease-in-out infinite;border-bottom:none;text-decoration:line-through wavy;text-decoration-thickness:1.5px}
 @keyframes twist{0%,100%{transform:skewX(0) rotate(0)}25%{transform:skewX(-14deg) rotate(-2deg)}75%{transform:skewX(12deg) rotate(2deg)}}
@@ -105,7 +105,10 @@ button{font:inherit}
   padding:10px 14px 10px 26px;font-weight:700;color:var(--ink);box-shadow:0 3px 0 #c9a96a,0 6px 12px #0002;font-family:var(--display)}
 .card::before{content:"札";position:absolute;left:6px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--seal)}
 .card:hover{transform:translateY(-2px)}
-.none{all:unset;cursor:pointer;font-size:13px;padding:6px 14px;border-radius:999px;border:1px solid #b9a983;color:var(--ink);justify-self:start}
+.none,.shiori{all:unset;cursor:pointer;font-size:13px;padding:6px 14px;min-height:44px;box-sizing:border-box;display:inline-flex;align-items:center;border-radius:999px;border:1px solid #b9a983;color:var(--ink)}
+.tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.shiori{border-color:#c58a1c;color:#8a5a12;background:#fff4d6}
+.w.okw{color:#9a8f80;border-bottom:2px solid #9fc4ab;cursor:default;background:#e7f0e3}
 .res{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;background:#efe6cf;border-radius:10px;padding:10px 12px}
 .res p{margin:0;font-size:14px}
 .res b{font-size:16px;font-family:var(--display)}
@@ -158,8 +161,36 @@ footer p{margin:0}
 footer a{color:var(--lamp)}
 .ask{font-size:13px;opacity:.85;border-top:1px dashed #ffffff22;padding-top:10px}
 .ask a{color:var(--lamp)}
+/* 完封・実績・カレンダー */
+.spine .kan{position:absolute;bottom:-12px;width:22px;height:22px;border-radius:4px;background:var(--seal);color:#fff;font-family:var(--display);font-size:13px;line-height:22px;text-align:center;box-shadow:0 2px 6px #0007}
+.kanpu{display:flex;align-items:center;gap:10px;font-family:var(--display);font-size:18px;color:var(--lamp);margin:0}
+.kanpu .big{width:44px;height:44px;border-radius:6px;background:var(--seal);color:#fff;font-size:26px;display:grid;place-items:center;animation:stamp .5s both;box-shadow:0 0 18px #ff8a8055}
+.newach{font-size:13px;margin:0;color:#ffe3a0}
+.achs{display:grid;gap:8px}
+.ach{display:grid;grid-template-columns:36px 1fr auto;gap:10px;align-items:center;background:#ffffff0d;border:1px solid #ffffff1f;border-radius:10px;padding:8px 10px;min-width:0}
+.ach .ic{font-size:22px;text-align:center}
+.ach b{font-family:var(--display);font-size:15px;color:var(--lamp);display:block}
+.ach small{font-size:12px;opacity:.85;display:block;overflow-wrap:anywhere}
+.ach .pr{font-size:12px;font-variant-numeric:tabular-nums;opacity:.9;white-space:nowrap}
+.ach.no{opacity:.6}.ach.no .ic{filter:grayscale(1)}
+.ach.got{border-color:#e7b04f88;background:#e7b04f14}
+.calhead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.calhead b{font-family:var(--display);font-size:18px;color:var(--lamp)}
+.calhead .btn{padding:6px 14px;min-width:44px;min-height:44px;box-sizing:border-box;display:grid;place-items:center}
+.calhead .btn[disabled]{opacity:.35;cursor:default}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;font-size:12px}
+.cal .dw{opacity:.7}
+.cal .d{aspect-ratio:1;border-radius:8px;display:grid;place-items:center;background:#ffffff08;font-variant-numeric:tabular-nums;min-width:0}
+.cal .d.l1{background:#e7b04f5c}.cal .d.l2{background:#e7b04f90;color:#2a1d08}.cal .d.l3{background:var(--lamp);color:#2a1d08;font-weight:700}
+.cal .d.today{box-shadow:inset 0 0 0 2px #fff}
+.cal .d.fut{opacity:.35}
+.calnote{font-size:12px;opacity:.85}
+.keys{display:flex;gap:10px;align-items:center;font-size:12px;opacity:.85;flex-wrap:wrap}
+.keys i{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:3px}
 [hidden]{display:none!important}
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+/* all:unset のボタンでも、キーで選んだときの枠を必ず出す（いちばん最後に強く書く） */
+:is(.btn,.w,.card,.spine,.none,.shiori,button,a):focus-visible{outline:3px solid #fff!important;outline-offset:3px}
 </style>
 </head>
 <body>
@@ -265,9 +296,32 @@ const ALL = BOOKS.flatMap((b) => b.pages.map((p) => Object.assign(p, { book: b }
 const MONS = ALL.filter((p) => p.lie >= 0);
 const KEY = "roppo-seal-v1";
 
-// 記録：solved[ページid]=true（封じた・うそが無いと見破った）。ブラウザが記録を拒んでも遊べるようにする
-function load() { try { const s = JSON.parse(localStorage.getItem(KEY) || "{}"); return { solved: (s && s.solved) || {} }; } catch (e) { return { solved: {} }; } }
-function save() { try { localStorage.setItem(KEY, JSON.stringify(mem)); } catch (e) { /* 記録できなくても続ける */ } }
+// 記録：solved[ページid]=true（封じた・うそが無いと見破った）・days[日本時間の日付]=その日に読んだページ数・kanpu[巻id]=1（完封した）・ach[実績id]=1（結果で知らせた）。
+// 古い記録（solved だけ）も足りない入れ物を fresh() で補って使い、ほかのものは消さない。ブラウザが記録を拒んでも遊べるようにする
+const fresh = () => ({ solved: {}, days: {}, kanpu: {}, ach: {} });
+const isObj = (x) => !!x && typeof x === "object" && !Array.isArray(x);
+function load() {
+  let s; try { s = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) { s = {}; }
+  if (!isObj(s)) s = {};
+  const m = Object.assign(fresh(), s);
+  for (const k of Object.keys(fresh())) if (!isObj(m[k])) m[k] = {};
+  return m;
+}
+// 別のタブが保存した記録を、手元の mem に合わせる（solved・kanpu・ach は足し合わせ、days は日ごとに多いほう）。
+// 古いタブが mem を丸ごと書き戻して、ほかのタブの封印・完封・実績を消さないように、保存の前と巻の終わりに読み直す。
+// 記録が読めない・形がちがうときは、手元の mem をそのまま使う（進み具合を捨てない）
+function merge() {
+  let s; try { s = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) { return; }
+  if (!isObj(s)) return;
+  for (const k of Object.keys(s)) if (!(k in mem)) mem[k] = s[k];
+  for (const k of ["solved", "kanpu", "ach"]) if (isObj(s[k])) for (const [id, v] of Object.entries(s[k])) if (v && !mem[k][id]) mem[k][id] = v;
+  if (isObj(s.days)) for (const [d, n] of Object.entries(s.days)) if (typeof n === "number" && !(n <= (mem.days[d] || 0))) mem.days[d] = n;
+}
+function save() { try { merge(); localStorage.setItem(KEY, JSON.stringify(mem)); } catch (e) { /* 記録できなくても続ける */ } }
+// 日本時間の日付（YYYY-MM-DD）。カレンダーと遊んだ日の数に使う
+const dayOf = (t) => new Date(t + 9 * 3600e3).toISOString().slice(0, 10);
+const today = () => dayOf(Date.now());
+const prevDay = (d) => dayOf(Date.parse(d + "T00:00:00+09:00") - 86400e3);
 let mem = load();
 let S = null; // 遊んでいる巻：{b, list, i, st, cards, got, lost, streak, best}
 const $ = (id) => document.getElementById(id);
@@ -276,6 +330,43 @@ function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.fl
 const solvedIn = (b) => b.pages.filter((p) => mem.solved[p.id]).length;
 const allDone = () => ALL.every((p) => mem.solved[p.id]);
 const bossOf = (b) => b.pages[b.pages.length - 1];
+
+// しおりに聞く（1回に1度）：正しい言葉のうち半分ほどを緑にする。うその言葉は必ず残し、候補が2つ以上残るようにする。
+// どれを緑にするかはページの id から決まる（いつ聞いても同じ）
+function hintWords(p) {
+  const idx = p.w.map((_, k) => k).filter((k) => k !== p.lie), r = rng(hash(p.id + ":shiori"));
+  for (let i = idx.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; }
+  return idx.slice(0, Math.min(Math.ceil(idx.length / 2), idx.length - 1)).sort((a, b) => a - b);
+}
+
+// 実績：いまの記録から毎回数える（腕前・集める・続ける）。続けるは連続でなく合計の日数
+const CLEAN = ALL.filter((p) => p.lie < 0);
+const cnt = {
+  sealed: (m) => MONS.filter((p) => m.solved[p.id]).length,
+  kan: (m) => BOOKS.filter((b) => m.kanpu[b.id]).length,
+  boss: (m) => BOOKS.filter((b) => m.solved[bossOf(b).id]).length,
+  clean: (m) => CLEAN.filter((p) => m.solved[p.id]).length,
+  books: (m) => BOOKS.filter((b) => b.pages.every((p) => m.solved[p.id])).length,
+  days: (m) => Object.keys(m.days).filter((d) => m.days[d] > 0).length,
+};
+const ACH = [
+  { id: "seal1", ic: "🔖", name: "はじめての封印", how: "ねじれ文字を1体封じる", of: "sealed", goal: 1 },
+  { id: "kan1", ic: "🎖️", name: "完封", how: "1回の6ページを全部一度で直す", of: "kan", goal: 1 },
+  { id: "kan3", ic: "📕", name: "三冊完封", how: "3つの巻で完封する", of: "kan", goal: 3 },
+  { id: "kan6", ic: "📚", name: "六法完封", how: "6つの巻すべてで完封する", of: "kan", goal: 6 },
+  { id: "boss", ic: "👹", name: "大きな魔を封じる者", how: "6つの巻末の大きな魔を全部封じる", of: "boss", goal: 6 },
+  { id: "clean", ic: "🏮", name: "見破りの目", how: "うその無いページを全部見破る", of: "clean", goal: CLEAN.length },
+  { id: "half", ic: "📖", name: "封じ帳 半分", how: "封じ帳を半分うめる", of: "sealed", goal: Math.ceil(MONS.length / 2) },
+  { id: "full", ic: "📜", name: "封じ帳 完成", how: "封じ帳を全部うめる", of: "sealed", goal: MONS.length },
+  { id: "book1", ic: "🏠", name: "一冊取り戻す", how: "1つの巻を全部直す", of: "books", goal: 1 },
+  { id: "dawn", ic: "🌅", name: "夜明け", how: "六法をすべて取り戻す", of: "books", goal: 6 },
+  { id: "d3", ic: "🕯️", name: "三夜の灯", how: "遊んだ日が合計3日", of: "days", goal: 3 },
+  { id: "d7", ic: "🪔", name: "七夜の灯", how: "遊んだ日が合計7日", of: "days", goal: 7 },
+  { id: "d15", ic: "🌕", name: "十五夜の灯", how: "遊んだ日が合計15日", of: "days", goal: 15 },
+];
+const achNow = (m) => ACH.map((a) => ({ ...a, cur: Math.min(cnt[a.of](m), a.goal), done: cnt[a.of](m) >= a.goal }));
+// 続けた日：今日（まだなら きのう）からさかのぼって、遊んだ日が続いている数
+function streakOf(days, d) { if (!(days[d] > 0)) d = prevDay(d); let n = 0; while (days[d] > 0) { n++; d = prevDay(d); } return n; }
 
 // 1回に読むのは6ページ（ふつうのページ5つ＋最後に大きな魔）。まだ直していないページを先に選び、並びは毎回まぜる。
 // only を渡すとそのページだけ（逃がした魔を追うとき）
@@ -347,18 +438,22 @@ function shelf() {
   h += `<div class="buddy" id="buddy">${buddy(true)}<div><b>相棒のしおり</b><p>覚えた技：${arts.length ? arts.join("・") : "まだ無い（巻を取り戻すと覚える）"}</p><p>3ページ続けて直すと、大技が出る。</p></div></div>`;
   h += '<div class="shelf" id="shelf">' + BOOKS.map((b, i) => {
     const n = solvedIn(b), full = n === b.pages.length;
-    return `<button class="spine${full ? " done" : ""}" data-book="${b.id}" style="--c:${b.c};height:${170 + (i % 3) * 14}px" aria-label="${b.name}の巻（${n}/${b.pages.length}）">` +
-      `<span class="band"></span><span class="t">${b.name}</span><span class="band"></span><span class="n">${n}/${b.pages.length}</span></button>`;
+    const kan = !!mem.kanpu[b.id];
+    return `<button class="spine${full ? " done" : ""}" data-book="${b.id}" style="--c:${b.c};height:${170 + (i % 3) * 14}px" aria-label="${b.name}の巻（${n}/${b.pages.length}${kan ? "・完封" : ""}）">` +
+      `<span class="band"></span><span class="t">${b.name}</span><span class="band"></span><span class="n">${n}/${b.pages.length}</span>${kan ? '<span class="kan" aria-hidden="true">完</span>' : ""}</button>`;
   }).join("") + "</div>";
-  h += '<p class="hint">本をタップして開く。どの巻からでもよい。1回に6ページずつ読む。</p><div class="row"><button class="btn sub2" id="cho">封じ帳を見る</button></div>';
+  h += '<p class="hint">本をタップして開く。どの巻からでもよい。1回に6ページずつ読む。</p><div class="row"><button class="btn sub2" id="cho">封じ帳</button><button class="btn sub2" id="achbtn">実績</button><button class="btn sub2" id="calbtn">カレンダー</button></div>';
   view().innerHTML = h;
   view().querySelectorAll(".spine").forEach((x) => x.addEventListener("click", () => openBook(x.dataset.book)));
   $("cho").addEventListener("click", cho);
+  $("achbtn").addEventListener("click", achView);
+  $("calbtn").addEventListener("click", () => calView(today().slice(0, 7)));
 }
 
 function openBook(id, only) {
   const b = BOOKS.find((x) => x.id === id);
-  S = { b, list: makeOrder(b, only), i: 0, st: null, cards: null, got: [], lost: [], streak: 0, best: 0, wasFull: solvedIn(b) === b.pages.length };
+  S = { b, list: makeOrder(b, only), i: 0, st: null, cards: null, got: [], lost: [], streak: 0, best: 0, wasFull: solvedIn(b) === b.pages.length,
+    only: !!only, hint: 1, hinted: false, marked: [] };
   render(true);
 }
 
@@ -368,6 +463,7 @@ function words(p) {
     const miss = st && st.miss === k ? " miss" : "";
     if (k === p.lie && (!st || st.choose)) return `<button class="w${st && st.choose ? " lie" : ""}" data-k="${k}">${p.bad}</button>`;
     if (k === p.lie) return `<span class="w ${st.ok ? "fixed" : "ans"}">${x}</span>`;
+    if (!st && S.marked.includes(k)) return `<span class="w okw">${x}</span>`;
     return `<button class="w${miss}" data-k="${k}">${x}</button>`;
   }).join("");
 }
@@ -381,7 +477,8 @@ function render(turn) {
   if (boss && !st) h += '<p style="margin:0"><span class="chip">巻末：大きなねじれ文字が潜んでいる</span></p>';
   if (S.streak % POWER === POWER - 1 && !st) h += '<p class="streak">しおりの力が、あと1つで満ちる！</p>';
   if (!st) {
-    h += `<div class="text">${words(p)}</div><p class="q">うそに書き換えられた言葉をタップ。</p><button class="none" id="none">このページにうそは無い</button>`;
+    h += `<div class="text">${words(p)}</div><p class="q">${S.marked.length ? "しおり「緑の言葉は正しいよ」" : "うそに書き換えられた言葉をタップ。"}</p>` +
+      `<div class="tools"><button class="none" id="none">このページにうそは無い</button>${S.hint > 0 ? '<button class="shiori" id="shiori">🔖 しおりに聞く</button>' : ""}</div>`;
   } else if (st.choose) {
     if (!S.cards) S.cards = shuffle([p.w[p.lie], ...p.alt]);
     h += `<div class="text done">${words(p)}</div><p class="lurk">${monster(p, boss)}<span>ねじれ文字が姿を現した！ 正しい札をはめて封じる。</span></p>` +
@@ -399,9 +496,10 @@ function render(turn) {
   }
   h += "</article></div>";
   view().innerHTML = h;
-  view().querySelectorAll(".text:not(.done) .w").forEach((x) => x.addEventListener("click", () => pick(+x.dataset.k)));
+  view().querySelectorAll(".text:not(.done) button.w").forEach((x) => x.addEventListener("click", () => pick(+x.dataset.k)));
   view().querySelectorAll(".card").forEach((x) => x.addEventListener("click", () => fit(x.textContent)));
   const n = $("none"); if (n) n.addEventListener("click", () => finish(p.lie < 0, p.lie < 0 ? null : `うそがあった。「${p.bad}」がねじれ文字。`));
+  const sh = $("shiori"); if (sh) sh.addEventListener("click", () => { S.hint--; S.hinted = true; S.marked = hintWords(p); render(); });
   const g = $("next"); if (g) { g.focus({ preventScroll: true }); g.addEventListener("click", next); }
 }
 
@@ -414,12 +512,17 @@ function fit(c) { const p = S.list[S.i], ok = c === p.w[p.lie]; finish(ok, ok ? 
 function finish(ok, note, miss) {
   const p = S.list[S.i];
   S.st = { done: true, ok, note, miss };
-  if (ok) { mem.solved[p.id] = true; S.got.push(p); S.streak++; S.best = Math.max(S.best, S.streak); save(); if (S.streak % POWER === 0) S.st.power = techFor(S.b); }
+  try { merge(); } catch (e) { /* 読めなくても続ける */ } // 別のタブで同じ日に読んだページ数に足す
+  const d = today(); mem.days[d] = (mem.days[d] || 0) + 1;
+  // この回の1ページで巻がそろったときだけ「新しい技」を出す（別のタブでそろえた巻では出さない）
+  if (ok && !mem.solved[p.id] && solvedIn(S.b) === S.b.pages.length - 1) S.madeFull = true;
+  if (ok) { mem.solved[p.id] = true; S.got.push(p); S.streak++; S.best = Math.max(S.best, S.streak); if (S.streak % POWER === 0) S.st.power = techFor(S.b); }
   else { S.lost.push(p); S.streak = 0; }
+  save();
   render();
 }
 function next() {
-  S.i++; S.st = null; S.cards = null;
+  S.i++; S.st = null; S.cards = null; S.marked = [];
   if (S.i < S.list.length) render(true); else fin();
 }
 
@@ -427,16 +530,26 @@ function next() {
 // 応援のひとこと：遊び終えて満足したときだけ（巻を初めて取り戻したとき・夜明け）出す。遊ぶ前や途中には出さない
 function ask(id) { return `<p class="ask" id="${id}">楽しめたら、<a href="https://ko-fi.com/satouaaaaa" target="_blank" rel="noopener noreferrer">Ko-fi でコーヒー1杯の応援</a>をもらえると、新しい巻づくりの励みになります（任意・遊ぶのはずっと無料）。</p>`; }
 function fin() {
+  try { merge(); } catch (e) { /* 読めなくても続ける */ }
   frame();
   const b = S.b, n = solvedIn(b), full = n === b.pages.length, lost = S.lost.slice();
   const slot = (p, out) => p.lie < 0 ? "" : `<div class="slot${out ? " out" : ""}">${monster(p, false)}<span class="nm">${p.bad}</span><span>${out ? "逃げた" : "封じた"}</span></div>`;
   const mons = S.got.map((p) => slot(p, false)).join("") + S.lost.map((p) => slot(p, true)).join("");
+  // 完封：ふつうの1回（6ページ）を、しおりに聞かずに全部一度で直した。巻の背に「完」の印が付く
+  const full6 = !S.only && S.list.length === PER, perfect = full6 && !S.lost.length && !S.hinted, firstKan = perfect && !mem.kanpu[b.id];
+  if (perfect) mem.kanpu[b.id] = 1;
+  const fresh8 = achNow(mem).filter((a) => a.done && !mem.ach[a.id]);
+  fresh8.forEach((a) => { mem.ach[a.id] = 1; });
+  save();
   view().innerHTML = `<div class="panel" id="fin"><h2>${full ? `${b.name}の巻を取り戻した！` : `${b.name}の巻 ${n} / ${b.pages.length} ページ`}</h2>` +
+    (perfect ? `<p class="kanpu" id="kanpu"><span class="big" aria-hidden="true">完</span><span>完封！${firstKan ? `<br><small>${b.name}の巻に印が付いた</small>` : ""}</span></p>` : "") +
     `<p>${S.list.length}ページ中 ${S.got.length}ページを一度で直した。${S.best >= 3 ? `れんぞく ${S.best}！` : ""}</p>` +
-    (full && !S.wasFull ? `<p class="learn" id="learn">${buddy(true)}<span>相棒のしおりが、新しい技「${ARTS[b.id]}」を覚えた！</span></p>` : "") +
+    (full6 && !perfect ? `<p class="hint" id="kanhint">${S.hinted ? "しおりに聞かずに" : ""}6ページを一度で直すと「完封」。</p>` : "") +
+    (fresh8.length ? `<p class="newach" id="newach">🏅 実績：${fresh8.map((a) => a.name).join("・")}</p>` : "") +
+    (full && S.madeFull ? `<p class="learn" id="learn">${buddy(true)}<span>相棒のしおりが、新しい技「${ARTS[b.id]}」を覚えた！</span></p>` : "") +
     (mons ? `<div class="mons">${mons}</div>` : "") +
     `<div class="row">${lost.length ? '<button class="btn" id="chase">逃がした魔を追う</button>' : full ? "" : '<button class="btn" id="more">続きを読む</button>'}<button class="btn sub2" id="back">本棚へ</button></div>` +
-    (full && !S.wasFull ? ask("askfin") : "") + `</div>`;
+    (full && S.madeFull ? ask("askfin") : "") + `</div>`;
   const c = $("chase"); if (c) c.addEventListener("click", () => openBook(b.id, lost));
   const m = $("more"); if (m) m.addEventListener("click", () => openBook(b.id));
   $("back").addEventListener("click", shelf);
@@ -452,6 +565,41 @@ function cho() {
   }
   h += '<div class="row"><button class="btn sub2" id="back">本棚へ</button></div></div>';
   view().innerHTML = h;
+  $("back").addEventListener("click", shelf);
+}
+
+// 実績：とれたものは ✓、まだのものは条件と進み具合（いま/目標）
+function achView() {
+  const xs = achNow(mem);
+  view().innerHTML = `<div class="panel" id="achview"><h2>実績</h2><p>${xs.filter((a) => a.done).length} / ${xs.length}</p><div class="achs">` +
+    xs.map((a) => `<div class="ach ${a.done ? "got" : "no"}" data-id="${a.id}"><span class="ic" aria-hidden="true">${a.ic}</span><span><b>${a.name}</b><small>${a.how}</small></span>` +
+      `<span class="pr">${a.done ? "✓" : `${a.cur}/${a.goal}`}</span></div>`).join("") +
+    '</div><div class="row"><button class="btn sub2" id="back">本棚へ</button></div></div>';
+  $("back").addEventListener("click", shelf);
+}
+
+// カレンダー：遊んだ日に灯り（読んだページが多いほど明るい）。前の月へ戻れる。休んだ日には何も書かない
+const lvOf = (n) => (n >= 12 ? 3 : n >= 6 ? 2 : n >= 1 ? 1 : 0);
+function calView(ym) {
+  const t = today(), now = t.slice(0, 7), played = Object.keys(mem.days).filter((d) => mem.days[d] > 0).sort();
+  const first = played.length && played[0].slice(0, 7) < now ? played[0].slice(0, 7) : now;
+  if (ym > now) ym = now; if (ym < first) ym = first;
+  const [y, m] = ym.split("-").map(Number), start = new Date(Date.UTC(y, m - 1, 1)).getUTCDay(), len = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const shift = (k) => { const x = new Date(Date.UTC(y, m - 1 + k, 1)); return x.toISOString().slice(0, 7); };
+  let g = "日月火水木金土".split("").map((w) => `<span class="dw">${w}</span>`).join("") + "<span></span>".repeat(start);
+  for (let i = 1; i <= len; i++) {
+    const d = `${ym}-${String(i).padStart(2, "0")}`, n = mem.days[d] || 0;
+    g += `<span class="d l${lvOf(n)}${d === t ? " today" : ""}${d > t ? " fut" : ""}" data-day="${d}"${n ? ` aria-label="${i}日 ${n}ページ"` : ""}>${i}</span>`;
+  }
+  const st = streakOf(mem.days, t);
+  view().innerHTML = `<div class="panel" id="calview"><h2>カレンダー</h2>` +
+    `<div class="calhead"><button class="btn sub2" id="prevm" aria-label="前の月"${ym <= first ? " disabled" : ""}>‹</button><b>${y}年${m}月</b>` +
+    `<button class="btn sub2" id="nextm" aria-label="次の月"${ym >= now ? " disabled" : ""}>›</button></div><div class="cal" id="cal">${g}</div>` +
+    `<p class="keys"><span><i style="background:#e7b04f5c"></i>読んだ</span><span><i style="background:#e7b04f90"></i>6ページ</span><span><i style="background:var(--lamp)"></i>12ページ</span></p>` +
+    `<p class="calnote" id="calnote">遊んだ日 合計 ${played.length}日${st >= 1 ? `<span id="streak">・続けて ${st}日</span>` : ""}</p>` +
+    '<div class="row"><button class="btn sub2" id="back">本棚へ</button></div></div>';
+  $("prevm").addEventListener("click", () => calView(shift(-1)));
+  $("nextm").addEventListener("click", () => calView(shift(1)));
   $("back").addEventListener("click", shelf);
 }
 
