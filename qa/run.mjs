@@ -167,6 +167,24 @@ try {
   });
   check("間違えるとしおりの力が0に戻る（直す2→間違い→直す2では大技なし、3つ目で出る）", resetSeq === "-,-,-,-,-,大技", resetSeq);
 
+  // 4b2. 別のタブとの記録：同じ日のページ数は足し合わせ、別のタブでそろえた巻では「新しい技」を出さない
+  const tabs = await page.evaluate(() => {
+    const keep = { S, mem: JSON.stringify(mem) }, b = BOOKS[3], d = today();
+    const other = JSON.parse(keep.mem); other.days[d] = (other.days[d] || 0) + 6; for (const p of b.pages) other.solved[p.id] = true;
+    mem = JSON.parse(keep.mem); for (const p of b.pages) delete mem.solved[p.id];
+    localStorage.setItem(KEY, JSON.stringify(other));
+    S = { b, list: [b.pages[0]], i: 0, st: null, cards: null, got: [], lost: [], streak: 0, best: 0 };
+    const before = other.days[d]; finish(true, null); const days = mem.days[d];
+    next(); const learnOther = !!document.querySelector("#learn");
+    mem = JSON.parse(keep.mem); for (const p of b.pages) delete mem.solved[p.id]; for (const p of b.pages.slice(1)) mem.solved[p.id] = true; localStorage.setItem(KEY, JSON.stringify(mem));
+    S = { b, list: [b.pages[0]], i: 0, st: null, cards: null, got: [], lost: [], streak: 0, best: 0 };
+    finish(true, null); next(); const learnOwn = !!document.querySelector("#learn");
+    S = keep.S; mem = JSON.parse(keep.mem); localStorage.setItem(KEY, keep.mem);
+    return { days, before, learnOther, learnOwn };
+  });
+  check("別のタブで同じ日に読んだページ数に、このタブの1ページを足す（上書きしない）", tabs.days === tabs.before + 1, JSON.stringify(tabs));
+  check("別のタブでそろえた巻では「新しい技」を出さず、この回の1ページでそろえたときは出す", !tabs.learnOther && tabs.learnOwn, JSON.stringify(tabs));
+
   // 4c. 大技の名前（乱数）：まだ技を覚えていない巻では、覚えた技の中から選ぶ。300回作って毎回確かめる
   const tech = await page.evaluate(() => {
     const xs = learned(), keep = JSON.stringify(mem);

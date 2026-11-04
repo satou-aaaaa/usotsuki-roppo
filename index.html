@@ -512,7 +512,10 @@ function fit(c) { const p = S.list[S.i], ok = c === p.w[p.lie]; finish(ok, ok ? 
 function finish(ok, note, miss) {
   const p = S.list[S.i];
   S.st = { done: true, ok, note, miss };
+  try { merge(); } catch (e) { /* 読めなくても続ける */ } // 別のタブで同じ日に読んだページ数に足す
   const d = today(); mem.days[d] = (mem.days[d] || 0) + 1;
+  // この回の1ページで巻がそろったときだけ「新しい技」を出す（別のタブでそろえた巻では出さない）
+  if (ok && !mem.solved[p.id] && solvedIn(S.b) === S.b.pages.length - 1) S.madeFull = true;
   if (ok) { mem.solved[p.id] = true; S.got.push(p); S.streak++; S.best = Math.max(S.best, S.streak); if (S.streak % POWER === 0) S.st.power = techFor(S.b); }
   else { S.lost.push(p); S.streak = 0; }
   save();
@@ -543,10 +546,10 @@ function fin() {
     `<p>${S.list.length}ページ中 ${S.got.length}ページを一度で直した。${S.best >= 3 ? `れんぞく ${S.best}！` : ""}</p>` +
     (full6 && !perfect ? `<p class="hint" id="kanhint">${S.hinted ? "しおりに聞かずに" : ""}6ページを一度で直すと「完封」。</p>` : "") +
     (fresh8.length ? `<p class="newach" id="newach">🏅 実績：${fresh8.map((a) => a.name).join("・")}</p>` : "") +
-    (full && !S.wasFull ? `<p class="learn" id="learn">${buddy(true)}<span>相棒のしおりが、新しい技「${ARTS[b.id]}」を覚えた！</span></p>` : "") +
+    (full && S.madeFull ? `<p class="learn" id="learn">${buddy(true)}<span>相棒のしおりが、新しい技「${ARTS[b.id]}」を覚えた！</span></p>` : "") +
     (mons ? `<div class="mons">${mons}</div>` : "") +
     `<div class="row">${lost.length ? '<button class="btn" id="chase">逃がした魔を追う</button>' : full ? "" : '<button class="btn" id="more">続きを読む</button>'}<button class="btn sub2" id="back">本棚へ</button></div>` +
-    (full && !S.wasFull ? ask("askfin") : "") + `</div>`;
+    (full && S.madeFull ? ask("askfin") : "") + `</div>`;
   const c = $("chase"); if (c) c.addEventListener("click", () => openBook(b.id, lost));
   const m = $("more"); if (m) m.addEventListener("click", () => openBook(b.id));
   $("back").addEventListener("click", shelf);
