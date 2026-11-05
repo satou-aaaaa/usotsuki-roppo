@@ -303,9 +303,9 @@ const MONS = ALL.filter((p) => p.lie >= 0);
 const KEY = "roppo-seal-v1";
 
 // 記録：solved[ページid]=true（封じた・うそが無いと見破った）・days[日本時間の日付]=その日に読んだページ数・kanpu[巻id]=1（完封した）・ach[実績id]=1（結果で知らせた）。
-// とことん：ebest＝続けて直せたページ数の自己ベスト・erun＝遊んでいる途中の回（{id, list:ページid, i, n, life}）・edone＝最後に終えた回の id
+// とことん：ebest＝続けて直せたページ数の自己ベスト・erun＝遊んでいる途中の回（{id, list:ページid, i, n, life}）・edone＝最後に終えた回の id・edones＝終えた回の id（新しい20件。別のタブの古い保存で終えた回を戻さない）
 // 古い記録（solved だけ）も足りない入れ物を fresh() で補って使い、ほかのものは消さない。ブラウザが記録を拒んでも遊べるようにする
-const fresh = () => ({ solved: {}, days: {}, kanpu: {}, ach: {}, ebest: 0, erun: null, edone: "" });
+const fresh = () => ({ solved: {}, days: {}, kanpu: {}, ach: {}, ebest: 0, erun: null, edone: "", edones: [] });
 const BOXES = ["solved", "days", "kanpu", "ach"];
 const isObj = (x) => !!x && typeof x === "object" && !Array.isArray(x);
 const okNum = (x) => typeof x === "number" && Number.isFinite(x) && x >= 0;
@@ -317,6 +317,8 @@ function load() {
   if (!okNum(m.ebest)) m.ebest = 0;
   if (!isObj(m.erun)) m.erun = null;
   if (typeof m.edone !== "string") m.edone = "";
+  m.edones = Array.isArray(m.edones) ? m.edones.filter((x) => typeof x === "string") : [];
+  if (m.edone && !m.edones.includes(m.edone)) m.edones.push(m.edone);
   return m;
 }
 // 別のタブが保存した記録を、手元の mem に合わせる（solved・kanpu・ach は足し合わせ、days は日ごとに多いほう）。
@@ -330,9 +332,17 @@ function merge() {
   if (isObj(s.days)) for (const [d, n] of Object.entries(s.days)) if (typeof n === "number" && !(n <= (mem.days[d] || 0))) mem.days[d] = n;
   // とことん：自己ベストは大きいほう。別のタブで終えた回は戻さず、別のタブで進んだ回は進んだほうを使う
   if (okNum(s.ebest) && s.ebest > (mem.ebest || 0)) mem.ebest = s.ebest;
-  if (typeof s.edone === "string" && s.edone && isObj(mem.erun) && mem.erun.id === s.edone) { mem.erun = null; mem.edone = s.edone; }
-  else if (isObj(s.erun)) {
-    if (!isObj(mem.erun)) { if (s.erun.id !== mem.edone) mem.erun = s.erun; }
+  // 終えた回は両方の履歴を足し合わせて覚え、履歴にある回は手元からも別のタブからも続きにしない（2026-11-05 CodeRabbit）
+  const done = new Set(mem.edones);
+  if (Array.isArray(s.edones)) for (const x of s.edones) if (typeof x === "string") done.add(x);
+  if (typeof s.edone === "string" && s.edone) done.add(s.edone);
+  if (mem.edone) done.add(mem.edone);
+  mem.edones = [...done].slice(-20);
+  const seq = (id) => parseInt(String(id).split("-")[1], 10) || 0;
+  if (typeof s.edone === "string" && s.edone && (!mem.edone || seq(s.edone) > seq(mem.edone))) mem.edone = s.edone;
+  if (isObj(mem.erun) && done.has(mem.erun.id)) mem.erun = null;
+  if (isObj(s.erun) && !done.has(s.erun.id)) {
+    if (!isObj(mem.erun)) mem.erun = s.erun;
     else if (s.erun.id === mem.erun.id && s.erun.i > mem.erun.i) mem.erun = s.erun;
   }
 }
@@ -407,7 +417,7 @@ function endlessList(bs = readBooks()) {
 }
 const byId = Object.fromEntries(ALL.map((p) => [p.id, p]));
 // 保存してあった途中の回を、形が正しいか確かめてから使う
-const runOk = (r) => isObj(r) && typeof r.id === "string" && Array.isArray(r.list) && r.list.length > 0 && r.list.every((id) => byId[id]) && new Set(r.list).size === r.list.length
+const runOk = (r) => isObj(r) && typeof r.id === "string" && Array.isArray(r.list) && r.list.length > 0 && r.list.every((id) => Object.prototype.hasOwnProperty.call(byId, id)) && new Set(r.list).size === r.list.length
   && Number.isInteger(r.i) && r.i >= 0 && r.i <= r.list.length && okNum(r.n) && Number.isInteger(r.life) && r.life >= 0 && r.life <= ELIFE;
 const runOver = (r) => r.life <= 0 || r.i >= r.list.length;
 const lifeStr = (n) => "🎫".repeat(Math.max(0, n)) + `<span class="off">${"🎫".repeat(Math.max(0, ELIFE - n))}</span>`;
@@ -632,7 +642,7 @@ function endFin() {
   const r = runOk(mem.erun) ? mem.erun : null;
   if (!r || (S && S.mode === "e" && S.eid !== r.id)) return shelf();
   const n = r.n, prev = mem.ebest || 0, all = r.i >= r.list.length && r.life > 0;
-  mem.ebest = Math.max(prev, n); mem.erun = null; mem.edone = r.id;
+  mem.ebest = Math.max(prev, n); mem.erun = null; mem.edone = r.id; mem.edones = [...mem.edones.filter((x) => x !== r.id), r.id].slice(-20);
   save(); S = null; frame();
   const best = n > prev;
   view().innerHTML = `<div class="panel" id="efin"><h2>とことん</h2><p class="escore" id="eres">${n}ページ 直した</p>` +

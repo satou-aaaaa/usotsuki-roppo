@@ -454,7 +454,7 @@ try {
     const e3 = await q.evaluate(() => ({ life: mem.erun.life, n: mem.erun.n, i: mem.erun.i, solved: Object.keys(mem.solved).length, days: Object.keys(mem.days).length, kan: Object.keys(mem.kanpu).length, ach: Object.keys(mem.ach).length, ui: document.querySelector("#life").getAttribute("aria-label") }));
     check("とことんはまちがい1回で🎫を1枚使い、封じ帳・その日の数・完封・実績には数えない", e3.life === 2 && e3.n === 2 && e3.i === 3 && e3.solved === 2 && e3.days === 0 && e3.kan === 0 && e3.ach === 0 && e3.ui.includes("2"), JSON.stringify(e3));
     await q.reload();
-    check("とことんは途中で閉じても続きから（4ページ目・🎫2のまま。答えたページはもう一度出さない）", (await q.textContent("#go-e")).includes("4ページ目") && await q.evaluate(() => mem.erun.n === 2 && mem.erun.life === 2));
+    check("とことんは途中で閉じても続きから（4ページ目・🎫2のまま。答えたページはもう一度出さない）", (await q.textContent("#go-e")).includes("4ページ目") && await q.evaluate(() => mem.erun.n === 2 && mem.erun.life === 2), JSON.stringify(await q.evaluate(() => [document.querySelector("#go-e")?.textContent, mem.erun, localStorage.getItem(KEY)])));
     await q.click("#go-e");
     check("続きからは4ページ目・🎫2枚で始まる", (await q.textContent(".head")).includes("4ページ目") && (await q.locator("#life .off").textContent()) === "🎫");
     await q.click("#quit");
@@ -487,12 +487,23 @@ try {
       const done = JSON.parse(localStorage.getItem(KEY)); done.erun = null; done.edone = "qa-run"; localStorage.setItem(KEY, JSON.stringify(done));
       mem.erun = { ...run }; mem.edone = ""; save(); out.revived = JSON.parse(localStorage.getItem(KEY)).erun;
       const ahead = JSON.parse(localStorage.getItem(KEY)); ahead.erun = { ...run, id: "qa-2", i: 2, n: 2 }; ahead.edone = "qa-run"; localStorage.setItem(KEY, JSON.stringify(ahead));
-      mem.erun = { ...run, id: "qa-2" }; save(); out.ahead = mem.erun.i;
+      mem.erun = { ...run, id: "qa-2" }; save(); out.ahead = mem.erun.i; out.aheadLife = mem.erun.life; out.aheadN = mem.erun.n;
+      // 別のタブが R を終えてから T も終えた（edone は T）。R を開いたままの古いタブが保存しても R は戻らない
+      const rr = { id: "qa-R", list: ["ken1", "ken2"], i: 1, n: 1, life: 3 };
+      localStorage.setItem(KEY, JSON.stringify({ ...JSON.parse(localStorage.getItem(KEY)), erun: null, edone: "qa-T", edones: ["qa-R", "qa-T"] }));
+      mem.erun = { ...rr }; mem.edone = ""; mem.edones = []; save(); out.revivedR = JSON.parse(localStorage.getItem(KEY)).erun; out.keptHist = JSON.parse(localStorage.getItem(KEY)).edones.includes("qa-R") && mem.edone === "qa-T";
+      // R を終えたタブの記録に、ほかのタブが始めた新しい回 N がある。終えたタブも N を取り込み、消さない
+      localStorage.setItem(KEY, JSON.stringify({ ...JSON.parse(localStorage.getItem(KEY)), erun: { ...rr, id: "qa-N", i: 0, n: 0 }, edone: "qa-R" }));
+      mem.erun = { ...rr }; save(); out.newRun = mem.erun && mem.erun.id;
+      // 保存した回のページ id が継承のもの（constructor など）なら、続きにしない
+      out.protoRun = runOk({ id: "p", list: ["constructor"], i: 0, n: 0, life: 3 });
       localStorage.setItem(KEY, JSON.stringify({ solved: { ken1: true }, ebest: "x", erun: [1], edone: 5 })); const m = load(); out.old = [m.ebest, m.erun, m.edone, m.solved.ken1];
       localStorage.setItem(KEY, JSON.stringify({ solved: { ken1: true }, erun: { id: "bad", list: ["nope"], i: 0, n: 0, life: 3 } })); mem = load(); shelf(); out.badRun = document.getElementById("go-e").textContent;
       return out;
     });
-    check("別のタブの自己ベストは大きいほうを残し、別のタブで終えた回は書き戻さず、進んだ回は進んだほうを使う", tab.best === 9 && tab.revived === null && tab.ahead === 2, JSON.stringify(tab));
+    check("別のタブの自己ベストは大きいほうを残し、別のタブで終えた回は書き戻さず、進んだ回は進んだほうを使う", tab.best === 9 && tab.revived === null && tab.ahead === 2 && tab.aheadLife === 3 && tab.aheadN === 2, JSON.stringify(tab));
+    check("別のタブで終えた回は、そのあと別の回を終えても古いタブの保存で戻らず、別のタブが始めた新しい回は取り込む", tab.revivedR === null && tab.keptHist && tab.newRun === "qa-N", JSON.stringify(tab));
+    check("保存した回のページ id が継承のもの（constructor）だと、続きにしない", tab.protoRun === false);
     check("古い形・壊れたとことんの記録でも、足りない入れ物を補って本棚が出る", JSON.stringify(tab.old) === '[0,null,"",true]' && tab.badRun.includes("何ページ続けて直せる"), JSON.stringify(tab));
     // 巻の終わりの画面に「続けて遊ぶ：とことん」
     await q.click('.spine[data-book="ken"]'); await runQ();
