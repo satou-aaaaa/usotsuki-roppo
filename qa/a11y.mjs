@@ -122,23 +122,25 @@ const contrastFn = (skip) => {
     if (el.disabled || el.getAttribute("aria-disabled") === "true") continue; // 押せない部品は WCAG の対象外
     let fg = parse(cs.color); if (!fg) continue;
     // うしろの色：自分から上へ、色を重ねていく。絵・グラデーション・半透明の重なり（opacity）があれば測らない
-    let bg = [0, 0, 0, 0], node = el, unsure = false, layers = [], opa = 1;
+    // opacity は、その要素の背景も中の字もまとめて薄くする。背景の層ごとに「その層から上の opacity」を掛けて重ねる（2026-11-05 CodeRabbit：字だけ薄くして背景を薄くせず、甘く測っていた）
+    let bg = [0, 0, 0, 0], node = el, unsure = false, layers = [], ops = [];
     while (node && node.nodeType === 1) {
       const s = getComputedStyle(node);
-      opa *= +s.opacity;
+      ops.push(+s.opacity);
       const c = parse(s.backgroundColor);
       if (s.backgroundImage && s.backgroundImage !== "none") {
         // html・body の地の模様（和紙・布目など）は、下に敷いた地の色で測る（2026-11-05 まんなか漢字で全部の字が測れず、金の字の不足を見逃した）
-        if ((node === document.body || node === document.documentElement) && c && c[3] === 1) { layers.push(c); break; }
+        if ((node === document.body || node === document.documentElement) && c && c[3] === 1) { layers.push([c, ops.length - 1]); break; }
         unsure = true; break;
-      } if (c && c[3] > 0) layers.push(c);
+      } if (c && c[3] > 0) layers.push([c, ops.length - 1]);
       if (c && c[3] === 1) break;
       node = node.parentElement;
     }
     if (unsure) { skipped++; continue; }
-    layers.push([255, 255, 255, 1]);
-    for (const c of layers.reverse()) bg = over(c, bg);
-    fg = over([fg[0], fg[1], fg[2], fg[3] * opa], bg);
+    const upFrom = (i) => ops.slice(i).reduce((a, b) => a * b, 1);
+    bg = [255, 255, 255, 1];
+    for (const [c, i] of layers.reverse()) bg = over([c[0], c[1], c[2], c[3] * upFrom(i)], bg);
+    fg = over([fg[0], fg[1], fg[2], fg[3] * upFrom(0)], bg);
     const L1 = lum(fg), L2 = lum(bg), ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
     const size = parseFloat(cs.fontSize), bold = +cs.fontWeight >= 700;
     const need = size >= 24 || (bold && size >= 18.66) ? 3 : 4.5;
@@ -262,6 +264,14 @@ for (const sc of screens) {
   await page.reload(); await page.waitForTimeout(300);
   const kept = await page.evaluate(() => ["a11y-read", "a11y-cvd"].every((c) => document.documentElement.classList.contains(c)));
   check("見やすさの設定が開き、選んだもの（読みやすい文字・色の見分け）が次に開いても残る", opened && kept);
+  // 別のタブで変えた設定を、このタブの保存で消さない（2026-11-05 CodeRabbit）
+  const merged = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem("a11y-v1") || "{}"); s.ruby = true; localStorage.setItem("a11y-v1", JSON.stringify(s)); window.A11y.set("calm", true); const t = JSON.parse(localStorage.getItem("a11y-v1") || "{}"); return t.ruby === true && t.calm === true && t.read === true; });
+  check("別のタブで変えた見やすさの設定を、このタブの保存で消さない", merged);
+  // 保存した値がオブジェクトでなくても、設定のボタンと window.A11y が動く
+  await page.evaluate(() => localStorage.setItem("a11y-v1", "true"));
+  await page.reload(); await page.waitForTimeout(300);
+  const odd = await page.evaluate(() => !!window.A11y && !!document.querySelector("[data-a11y-open]"));
+  check("保存した見やすさの設定が壊れていても（true など）、設定を開ける", odd);
   await ctx.close();
 }
 

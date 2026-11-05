@@ -208,11 +208,10 @@ html.a11y-cvd .slot.out{border-width:2px}
 /* 読み上げソフトだけに届く知らせ（#live） */
 .sr{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 [hidden]{display:none!important}
-@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 /* all:unset のボタンでも、キーで選んだときの枠を必ず出す（いちばん最後に強く書く） */
 :is(.btn,.w,.card,.spine,.none,.shiori,button,a):focus-visible{outline:3px solid #fff!important;outline-offset:3px}
 </style>
-<!-- a11y:begin 見やすさの設定 v4（shared-workflows template/a11y/a11y.html の写し。ここでは直さず、ひな形を直して全部のゲームへ写す。drift-check と qa/a11y.mjs が同じ中身か見る） -->
+<!-- a11y:begin 見やすさの設定 v5（shared-workflows template/a11y/a11y.html の写し。ここでは直さず、ひな形を直して全部のゲームへ写す。drift-check と qa/a11y.mjs が同じ中身か見る） -->
 <style id="a11y-css">
 /* だれでも：キーボードで選んだ所に太い枠（WCAG 2.4.7・2.4.13） */
 :is(button,a,input,select,textarea,summary,[tabindex]):focus-visible{outline:3px solid #1a5fd0!important;outline-offset:2px!important;box-shadow:0 0 0 5px #fff!important}
@@ -266,8 +265,9 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
     ["ruby", "ふりがなを出す", "むずかしい漢字に読みを付ける"],
   ];
   const media = (q) => { try { return matchMedia(q).matches; } catch { return false; } };
-  let S = {};
-  try { S = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch { S = {}; }
+  // 保存した値がオブジェクトでなければ（別のページが書いた・手で直した）無かったことにする（2026-11-05 CodeRabbit：true が入ると設定が開けなくなる）
+  const load = () => { try { const v = JSON.parse(localStorage.getItem(KEY) || "{}"); return v && typeof v === "object" && !Array.isArray(v) ? v : {}; } catch { return {}; } };
+  let S = load();
   // 決めていないものは端末の設定に合わせる（視差効果を減らす → 動きを減らす）
   const on = (k) => (k in S ? !!S[k] : k === "calm" ? media("(prefers-reduced-motion: reduce)") : false);
   let fontLoaded = false;
@@ -287,6 +287,7 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
     if (!on("say")) stop();
   };
   const set = (k, v) => {
+    S = { ...S, ...load() }; // 別のタブで変えた設定を消さないよう、書く前に読み直す
     S[k] = !!v;
     try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* 保存できなくても今の画面には効かせる */ }
     apply();
@@ -350,6 +351,8 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
     dlg.querySelector("#a11y-novoice").hidden = !(on("say") && !voice());
     if (dlg.showModal) dlg.showModal(); else dlg.setAttribute("open", "");
   };
+  // 声の一覧はあとから届くことがある。届いたら「声がありません」を出し直す
+  try { speechSynthesis.addEventListener("voiceschanged", () => { if (dlg) dlg.querySelector("#a11y-novoice").hidden = !(on("say") && !voice()); }); } catch { /* 無い端末 */ }
   apply();
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", build); else build();
   window.A11y = { on, set, open, say, stop };
@@ -366,6 +369,7 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
       <p class="sub">封じの六法</p>
     </div>
     <div class="stat" id="stat"></div>
+    <button type="button" class="a11y-btn a11y-float" data-a11y-open aria-label="見やすさの設定">Aa</button>
   </header>
 
   <main id="view"></main>
@@ -638,11 +642,11 @@ function words(p) {
   const st = S.st;
   return p.w.map((x, k) => {
     const miss = st && st.miss === k ? " miss" : "";
-    if (k === p.lie && st && st.choose) return `<span class="w lie" data-k="${k}" aria-label="${p.bad}（うその言葉）">${p.bad}</span>`;
+    if (k === p.lie && st && st.choose) return `<span class="w lie" data-k="${k}" >${p.bad}<span class="sr">（うその言葉）</span></span>`;
     if (k === p.lie && !st) return `<button class="w" data-k="${k}">${p.bad}</button>`;
-    if (k === p.lie) return `<span class="w ${st.ok ? "fixed" : "ans"}" aria-label="${x}（${st.ok ? "直した" : "正しい言葉"}）">${x}</span>`;
-    if (!st && S.marked.includes(k)) return `<span class="w okw" aria-label="${x}（しおり：正しい）">${x}</span>`;
-    if (st) return `<span class="w${miss}" data-k="${k}"${miss ? ` aria-label="${x}（選んだ言葉）"` : ""}>${x}</span>`;
+    if (k === p.lie) return `<span class="w ${st.ok ? "fixed" : "ans"}" >${x}<span class="sr">（${st.ok ? "直した" : "正しい言葉"}）</span></span>`;
+    if (!st && S.marked.includes(k)) return `<span class="w okw" >${x}<span class="sr">（しおり：正しい）</span></span>`;
+    if (st) return `<span class="w${miss}" data-k="${k}">${x}${miss ? '<span class="sr">（選んだ言葉）</span>' : ""}</span>`;
     return `<button class="w" data-k="${k}">${x}</button>`;
   }).join("");
 }
@@ -667,7 +671,7 @@ function render(turn) {
   if (boss && !st) h += '<p style="margin:0"><span class="chip">巻末：大きなねじれ文字が潜んでいる</span></p>';
   if (S.streak % POWER === POWER - 1 && !st) h += '<p class="streak">しおりの力が、あと1つで満ちる！</p>';
   if (!st) {
-    h += `<div class="text" data-a11y-say>${words(p)}</div><p class="q" data-a11y-say>${S.marked.length ? "しおり「緑で ✓ の付いた言葉は正しいよ」" : S.easy ? "下読みとちがう言葉をタップ。同じなら下のボタン。" : "うそに書き換えられた言葉をタップ。"}</p>` +
+    h += `<div class="text" tabindex="-1" data-a11y-say>${words(p)}</div><p class="q" data-a11y-say>${S.marked.length ? "しおり「緑で ✓ の付いた言葉は正しいよ」" : S.easy ? "下読みとちがう言葉をタップ。同じなら下のボタン。" : "うそに書き換えられた言葉をタップ。"}</p>` +
       `<div class="tools"><button class="none" id="none">このページにうそは無い</button>${S.hint > 0 ? '<button class="shiori" id="shiori">🔖 しおりに聞く</button>' : ""}</div>`;
   } else if (st.choose) {
     if (!S.cards) S.cards = shuffle([p.w[p.lie], ...p.alt]);
@@ -694,6 +698,8 @@ function render(turn) {
   const n = $("none"); if (n) n.addEventListener("click", () => finish(p.lie < 0, p.lie < 0 ? null : `うそがあった。「${p.bad}」がねじれ文字。`));
   const sh = $("shiori"); if (sh) sh.addEventListener("click", () => { S.hint--; S.hinted = true; S.marked = hintWords(p); render(); });
   const g = $("next"); if (g) { g.focus({ preventScroll: true }); g.addEventListener("click", next); }
+  // 新しいページは本文へ枠を移して読み上げさせる（#view は丸ごと読み上げないので）
+  if (!st && turn) { const tx = view().querySelector(".text"); if (tx) tx.focus({ preventScroll: true }); }
   if (st && st.done) tell(S.said); else if (st && st.choose) tell("ねじれ文字が姿を現した。正しい札を選ぶ。"); else if (S.marked.length && S.hinted && S.hint === 0 && !S.toldHint) { S.toldHint = true; tell(`しおり：✓ の付いた言葉 ${S.marked.length}つは正しい。`); }
 }
 

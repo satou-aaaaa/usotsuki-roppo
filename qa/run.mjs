@@ -546,37 +546,40 @@ try {
     const pseudo = (sel, which) => c.evaluate(([s, w]) => { const el = document.querySelector(s); return el ? getComputedStyle(el, w).content : ""; }, [sel, which]);
     const live = async () => { await c.waitForTimeout(120); return (await c.textContent("#live")) || ""; };
     check("知らせの場所 #live が role=status で、本文の main は丸ごと読み上げない", await c.evaluate(() => document.getElementById("live")?.getAttribute("role") === "status" && !document.getElementById("view").hasAttribute("aria-live")));
+    check("知らせの場所 #live は隠れていない", await c.evaluate(() => { const el = document.getElementById("live"); const cs = el && getComputedStyle(el); return !!cs && el.checkVisibility() && cs.visibility !== "hidden" && !el.closest("[hidden],[aria-hidden=true],[inert]"); }));
+    check("見やすさの設定は、本を開いた画面でも上の「Aa」から開ける", await c.evaluate(() => !!document.querySelector("header [data-a11y-open]")));
     check("村の灯りの絵に、ともった家の数が名前で付く", /6軒のうち0軒/.test(await c.getAttribute("#town", "aria-label")));
     await c.click('.spine[data-book="ken"]');
+    check("新しいページを開くと本文へ枠が移り、読み上げソフトが本文を読む（#view は丸ごと読まない）", await c.evaluate(() => document.activeElement?.classList.contains("text")));
     await c.click("#shiori");
-    check("しおりが緑にした言葉には ✓ と「正しい」の名前も付き、文も ✓ を言う", (await pseudo(".w.okw", "::before")).includes("✓") && (await c.getAttribute(".w.okw", "aria-label")).includes("正しい") && (await c.textContent(".q")).includes("✓") && (await live()).includes("✓"));
+    check("しおりが緑にした言葉には ✓ と「正しい」の名前も付き、文も ✓ を言う", (await pseudo(".w.okw", "::before")).includes("✓") && (await c.textContent(".w.okw")).includes("正しい") && (await c.textContent(".q")).includes("✓") && (await live()).includes("✓"));
     // うそのあるページまで進む（うその無いページは「うそは無い」で進む）
     while ((await c.evaluate(() => S.list[S.i].lie)) < 0) { await c.click("#none"); await c.click("#next"); }
     const lie = await c.evaluate(() => S.list[S.i].lie);
     await c.click(`button.w:not([data-k="${lie}"])`);
-    check("まちがえて選んだ言葉は、色のほかに ✕ と破線の枠・「選んだ言葉」の名前で分かる", (await pseudo(".w.miss", "::before")).includes("✕") && (await c.evaluate(() => getComputedStyle(document.querySelector(".w.miss")).outlineStyle)) === "dashed" && (await c.getAttribute(".w.miss", "aria-label")).includes("選んだ言葉"));
+    check("まちがえて選んだ言葉は、色のほかに ✕ と破線の枠・「選んだ言葉」の名前で分かる", (await pseudo(".w.miss", "::before")).includes("✕") && (await c.evaluate(() => getComputedStyle(document.querySelector(".w.miss")).outlineStyle)) === "dashed" && (await c.textContent(".w.miss")).includes("選んだ言葉"));
     check("逃げられた知らせが #live に文字で出る", (await live()).includes("逃げられた"));
     check("答え合わせのあとの言葉は押せる形にしない（キーで押しても何も起きない所へ枠を止めない）", (await c.locator(".text.done button").count()) === 0);
-    check("正しい言葉は、色のほかに「正しい言葉」の名前でも分かる", (await c.getAttribute(".w.ans", "aria-label")).includes("正しい言葉"));
+    check("正しい言葉は、色のほかに「正しい言葉」の名前でも分かる", (await c.textContent(".w.ans")).includes("正しい言葉"));
     await c.click("#next");
     while ((await c.locator("#fin").count()) === 0) {
       const l = await c.evaluate(() => S.list[S.i].lie);
       if (l < 0) { await c.click("#none"); await c.click("#next"); continue; }
       await c.click(`button.w[data-k="${l}"]`);
-      const cs = { name: (await c.getAttribute(".w.lie", "aria-label")) || "", deco: await c.evaluate(() => getComputedStyle(document.querySelector(".w.lie")).textDecorationLine), focus: await c.evaluate(() => document.activeElement?.classList.contains("card")), said: await live() };
+      const cs = { name: (await c.textContent(".w.lie")) || "", deco: await c.evaluate(() => getComputedStyle(document.querySelector(".w.lie")).textDecorationLine), focus: await c.evaluate(() => document.activeElement?.classList.contains("card")), said: await live() };
       check("うその言葉は、色のほかに取り消し線と「うその言葉」の名前で分かり、札に枠が移り、知らせが出る", cs.name.includes("うその言葉") && cs.deco.includes("line-through") && cs.focus && cs.said.includes("姿を現した"), JSON.stringify(cs));
       await c.click(`.card:text-is("${await c.evaluate(() => S.list[S.i].w[S.list[S.i].lie])}")`);
-      check("直した言葉は、色のほかに ✓ と「直した」の名前で分かり、封じた知らせが出る", (await pseudo(".w.fixed", "::after")).includes("✓") && (await c.getAttribute(".w.fixed", "aria-label")).includes("直した") && (await live()).includes("封じた"));
+      check("直した言葉は、色のほかに ✓ と「直した」の名前で分かり、封じた知らせが出る", (await pseudo(".w.fixed", "::after")).includes("✓") && (await c.textContent(".w.fixed")).includes("直した") && (await live()).includes("封じた"));
       await c.click("#next"); break;
     }
     while ((await c.locator("#fin").count()) === 0) { const l = await c.evaluate(() => S.list[S.i].lie); await c.click(l < 0 ? "#none" : `button.w:not([data-k="${l}"])`); await c.click("#next"); }
     check("巻の終わりの逃げた魔は、色の薄さのほかに破線の枠と「逃げた」の文字で分かる", (await c.evaluate(() => [...document.querySelectorAll("#fin .slot.out")].every((x) => getComputedStyle(x).borderTopStyle === "dashed" && x.textContent.includes("逃げた")))) && (await c.locator("#fin .slot.out").count()) > 0);
     check("巻の終わりの知らせが #live に文字で出る", (await live()).includes("憲法の巻"));
     const lv = await c.evaluate(() => { const t = today(); mem.days = { [t]: 12, [prevDay(t)]: 6, [prevDay(prevDay(t))]: 1 }; calView(t.slice(0, 7));
-      return [t, prevDay(t), prevDay(prevDay(t))].map((d) => { const el = document.querySelector(`#cal [data-day="${d}"]`); return el ? getComputedStyle(el, "::after").content : "none"; }); });
+      return [t, prevDay(t), prevDay(prevDay(t))].map((d) => { const el = document.querySelector(`#cal [data-day="${d}"]`); return el ? getComputedStyle(el, "::after").content : null; }); });
     // 今日が月の1日・2日なら前の月の日はこの画面に無いので、ある日だけを見る
     const want = ['"•••"', '"••"', '"•"'];
-    check("カレンダーの灯りの段は、色の濃さのほかに点の数（• •• •••）でも分かる", lv.every((x, i) => x === "none" || x === want[i]) && lv[0] === want[0], lv.join(" "));
+    check("カレンダーの灯りの段は、色の濃さのほかに点の数（• •• •••）でも分かる", lv.every((x, i) => x === null || x === want[i]) && lv[0] === want[0], lv.join(" "));
     const keys = await c.evaluate(() => [...document.querySelectorAll(".keys i")].map((x) => getComputedStyle(x, "::after").content).join(" "));
     check("カレンダーの見本にも同じ点の数が出る", keys === want.slice().reverse().join(" "), keys);
     await c.evaluate(() => { document.documentElement.classList.add("a11y-cvd"); });
