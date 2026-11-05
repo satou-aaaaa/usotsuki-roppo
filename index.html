@@ -193,6 +193,11 @@ footer a{color:var(--lamp)}
 .btn[disabled]{opacity:.45;cursor:default}
 .life{font-size:15px;letter-spacing:1px}.life .off{opacity:.25}
 .escore{font-family:var(--display);font-size:30px;color:var(--lamp);margin:0}
+.spine .first{position:absolute;top:-30px;white-space:nowrap;font-size:11px;font-weight:700;background:var(--lamp);color:#2a1d08;border-radius:999px;padding:0 8px;box-shadow:0 2px 6px #0007}
+.mode{display:grid;justify-items:center;gap:4px}
+.mode .btn{min-height:44px;box-sizing:border-box;display:inline-flex;align-items:center}
+.peek-tag{margin:0;font-size:13px;font-weight:700;color:var(--fix)}
+.text.clean .w{border-bottom-color:transparent;cursor:default}
 [hidden]{display:none!important}
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 /* all:unset のボタンでも、キーで選んだときの枠を必ず出す（いちばん最後に強く書く） */
@@ -302,11 +307,11 @@ const ALL = BOOKS.flatMap((b) => b.pages.map((p) => Object.assign(p, { book: b }
 const MONS = ALL.filter((p) => p.lie >= 0);
 const KEY = "roppo-seal-v1";
 
-// 記録：solved[ページid]=true（封じた・うそが無いと見破った）・days[日本時間の日付]=その日に読んだページ数・kanpu[巻id]=1（完封した）・ach[実績id]=1（結果で知らせた）。
+// 記録：solved[ページid]=true（封じた・うそが無いと見破った）・days[日本時間の日付]=その日に読んだページ数・kanpu[巻id]=1（完封した）・ach[実績id]=1（結果で知らせた）・opt.easy（下読みあり）。
 // とことん：ebest＝続けて直せたページ数の自己ベスト・erun＝遊んでいる途中の回（{id, list:ページid, i, n, life}）・edone＝最後に終えた回の id・edones＝終えた回の id（新しい20件。別のタブの古い保存で終えた回を戻さない）
 // 古い記録（solved だけ）も足りない入れ物を fresh() で補って使い、ほかのものは消さない。ブラウザが記録を拒んでも遊べるようにする
-const fresh = () => ({ solved: {}, days: {}, kanpu: {}, ach: {}, ebest: 0, erun: null, edone: "", edones: [] });
-const BOXES = ["solved", "days", "kanpu", "ach"];
+const fresh = () => ({ solved: {}, days: {}, kanpu: {}, ach: {}, opt: {}, ebest: 0, erun: null, edone: "", edones: [] });
+const BOXES = ["solved", "days", "kanpu", "ach", "opt"];
 const isObj = (x) => !!x && typeof x === "object" && !Array.isArray(x);
 const okNum = (x) => typeof x === "number" && Number.isFinite(x) && x >= 0;
 function load() {
@@ -319,6 +324,8 @@ function load() {
   if (typeof m.edone !== "string") m.edone = "";
   m.edones = Array.isArray(m.edones) ? m.edones.filter((x) => typeof x === "string") : [];
   if (m.edone && !m.edones.includes(m.edone)) m.edones.push(m.edone);
+  // 下読み（opt.easy）：決めていなければ、まだ1ページも直していない人は「あり」、今までの記録がある人は「なし」（今までどおり）
+  if (typeof m.opt.easy !== "boolean") m.opt.easy = !Object.values(m.solved).some(Boolean);
   return m;
 }
 // 別のタブが保存した記録を、手元の mem に合わせる（solved・kanpu・ach は足し合わせ、days は日ごとに多いほう）。
@@ -329,6 +336,7 @@ function merge() {
   if (!isObj(s)) return;
   for (const k of Object.keys(s)) if (!(k in mem)) mem[k] = s[k];
   for (const k of ["solved", "kanpu", "ach"]) if (isObj(s[k])) for (const [id, v] of Object.entries(s[k])) if (v && !mem[k][id]) mem[k][id] = v;
+  if (isObj(s.opt) && typeof s.opt.easy === "boolean") mem.opt.easy = s.opt.easy; // 下読みの設定は、最後に切り替えたタブの値に合わせる
   if (isObj(s.days)) for (const [d, n] of Object.entries(s.days)) if (typeof n === "number" && !(n <= (mem.days[d] || 0))) mem.days[d] = n;
   // とことん：自己ベストは大きいほう。別のタブで終えた回は戻さず、別のタブで進んだ回は進んだほうを使う
   if (okNum(s.ebest) && s.ebest > (mem.ebest || 0)) mem.ebest = s.ebest;
@@ -359,6 +367,9 @@ function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.fl
 const solvedIn = (b) => b.pages.filter((p) => mem.solved[p.id]).length;
 const allDone = () => ALL.every((p) => mem.solved[p.id]);
 const bossOf = (b) => b.pages[b.pages.length - 1];
+// 下読み：法律を知らなくても遊べるよう、先に正しい条文を見せてから、ねじれ文字が書き換えたページを出す（はじめての人向け）
+const easy = () => mem.opt.easy !== false;
+const FIRST = "min"; // はじめの1冊：身近な決まり（成年・契約・遺言）が多い民法
 
 // しおりに聞く（1回に1度）：正しい言葉のうち半分ほどを緑にする。うその言葉は必ず残し、候補が2つ以上残るようにする。
 // どれを緑にするかはページの id から決まる（いつ聞いても同じ）
@@ -478,18 +489,21 @@ function shelf() {
   const done = allDone();
   let h = done ? '<div class="panel" id="dawn"><h2>夜明け！</h2><p>六法をすべて取り戻した。村じゅうに灯りがともった。</p>' + ask("askdawn") + '</div>'
     : '<p class="prolog">夜のうちに、ねじれ文字が六法の言葉をうそに書き換えた。うその言葉を見つけ、正しい札で封じよう。</p>';
+  const novice = !Object.values(mem.solved).some(Boolean);
   const arts = learned();
   h += `<div class="buddy" id="buddy">${buddy(true)}<div><b>相棒のしおり</b><p>覚えた技：${arts.length ? arts.join("・") : "まだ無い（巻を取り戻すと覚える）"}</p><p>3ページ続けて直すと、大技が出る。</p></div></div>`;
   h += '<div class="shelf" id="shelf">' + BOOKS.map((b, i) => {
     const n = solvedIn(b), full = n === b.pages.length;
-    const kan = !!mem.kanpu[b.id];
-    return `<button class="spine${full ? " done" : ""}" data-book="${b.id}" style="--c:${b.c};height:${170 + (i % 3) * 14}px" aria-label="${b.name}の巻（${n}/${b.pages.length}${kan ? "・完封" : ""}）">` +
+    const kan = !!mem.kanpu[b.id], first = novice && b.id === FIRST;
+    return `<button class="spine${full ? " done" : ""}" data-book="${b.id}" style="--c:${b.c};height:${170 + (i % 3) * 14}px" aria-label="${b.name}の巻（${n}/${b.pages.length}${kan ? "・完封" : ""}${first ? "・はじめはここから" : ""}）">` + (first ? '<span class="first" aria-hidden="true">はじめに</span>' : "") +
       `<span class="band"></span><span class="t">${b.name}</span><span class="band"></span><span class="n">${n}/${b.pages.length}</span>${kan ? '<span class="kan" aria-hidden="true">完</span>' : ""}</button>`;
   }).join("") + "</div>";
-  h += '<p class="hint">本をタップして開く。どの巻からでもよい。1回に6ページずつ読む。</p>' + endBtn(false) + '<div class="row"><button class="btn sub2" id="cho">封じ帳</button><button class="btn sub2" id="achbtn">実績</button><button class="btn sub2" id="calbtn">カレンダー</button></div>';
+  h += `<p class="hint">本をタップして開く。どの巻からでもよい。1回に6ページずつ読む。</p>${endBtn(false)}<div class="mode"><button class="btn sub2" id="easy" aria-pressed="${easy()}">${easy() ? "📖 下読みあり" : "⚔️ 下読みなし"}</button><p class="hint" id="easyhint">${easy() ? "先に正しい条文を読んでから、うそを探す" : "いきなりうそを探す（完封はこちら）"}</p></div><div class="row"><button class="btn sub2" id="cho">封じ帳</button><button class="btn sub2" id="achbtn">実績</button><button class="btn sub2" id="calbtn">カレンダー</button></div>`;
   view().innerHTML = h;
   view().querySelectorAll(".spine").forEach((x) => x.addEventListener("click", () => openBook(x.dataset.book)));
   $("cho").addEventListener("click", cho);
+  // 画面に出ている値を反転し、読み直しのあとに書く（save() は読み直しで保存済みの設定に戻すので使わない）
+  $("easy").addEventListener("click", () => { const shown = easy(); try { merge(); } catch (e) { /* 読めなくても続ける */ } mem.opt.easy = !shown; try { localStorage.setItem(KEY, JSON.stringify(mem)); } catch (e) { /* 記録できなくても続ける */ } shelf(); });
   $("achbtn").addEventListener("click", achView);
   $("calbtn").addEventListener("click", () => calView(today().slice(0, 7)));
   bindEnd();
@@ -506,7 +520,7 @@ function bindEnd() { const e = $("go-e"); if (e) e.addEventListener("click", sta
 function openBook(id, only) {
   const b = BOOKS.find((x) => x.id === id);
   S = { b, list: makeOrder(b, only), i: 0, st: null, cards: null, got: [], lost: [], streak: 0, best: 0, wasFull: solvedIn(b) === b.pages.length,
-    only: !!only, hint: 1, hinted: false, marked: [] };
+    only: !!only, hint: 1, hinted: false, marked: [], easy: easy(), peek: easy() };
   render(true);
 }
 // とことんを始める（途中の回があれば続きから）
@@ -539,14 +553,25 @@ function words(p) {
 function render(turn) {
   frame();
   if (S.mode === "e") S.b = S.list[S.i].book;
-  const p = S.list[S.i], st = S.st, boss = p === bossOf(S.b), er = S.mode === "e" ? mem.erun : null;
+  // 下読みの間は巻末の枠を付けない（枠でうそがあると分かってしまう）
+  const p = S.list[S.i], st = S.st, boss = p === bossOf(S.b) && !(!st && S.peek), er = S.mode === "e" ? mem.erun : null;
   const gv = st && st.power ? POWER : S.streak % POWER;
   let h = `<div class="stage"><article class="page${boss ? " boss" : ""}${turn ? " turn" : ""}${st && st.power ? " power" : ""}" style="--c:${S.b.c}">` +
     `<div class="head"><span class="art">${p.art}</span><span class="gauge" id="gauge" aria-label="しおりの力 ${gv}/${POWER}">${buddy(false)}${"●".repeat(gv)}${"○".repeat(POWER - gv)}</span>${er ? `<span class="life" id="life" aria-label="まちがえてよい回数 ${er.life}">${lifeStr(er.life)}</span><span>とことん　${S.i + 1}ページ目</span>` : `<span>${S.b.name}の巻　${S.i + 1} / ${S.list.length}</span>`}</div>`;
+  if (!st && S.peek) {
+    // 下読み：正しい条文だけを見せる（うそがあるかどうかは言わない）
+    h += '<p class="peek-tag" id="peek">📖 下読み：これが正しい条文</p>' +
+      `<div class="text done clean">${p.w.map((x) => `<span class="w">${x}</span>`).join("")}</div>` +
+      '<p class="q">しおり「覚えたら、めくってね。ねじれ文字が1か所を書き換えるかも」</p>' +
+      '<button class="btn go" id="flip">めくる</button></article></div>';
+    view().innerHTML = h;
+    const fl = $("flip"); fl.focus({ preventScroll: true }); fl.addEventListener("click", () => { S.peek = false; render(true); });
+    return;
+  }
   if (boss && !st) h += '<p style="margin:0"><span class="chip">巻末：大きなねじれ文字が潜んでいる</span></p>';
   if (S.streak % POWER === POWER - 1 && !st) h += '<p class="streak">しおりの力が、あと1つで満ちる！</p>';
   if (!st) {
-    h += `<div class="text">${words(p)}</div><p class="q">${S.marked.length ? "しおり「緑の言葉は正しいよ」" : "うそに書き換えられた言葉をタップ。"}</p>` +
+    h += `<div class="text">${words(p)}</div><p class="q">${S.marked.length ? "しおり「緑の言葉は正しいよ」" : S.easy ? "下読みとちがう言葉をタップ。同じなら下のボタン。" : "うそに書き換えられた言葉をタップ。"}</p>` +
       `<div class="tools"><button class="none" id="none">このページにうそは無い</button>${S.hint > 0 ? '<button class="shiori" id="shiori">🔖 しおりに聞く</button>' : ""}</div>`;
   } else if (st.choose) {
     if (!S.cards) S.cards = shuffle([p.w[p.lie], ...p.alt]);
@@ -602,7 +627,7 @@ function finish(ok, note, miss) {
 }
 function next() {
   if (S.mode === "e") { const r = mem.erun; if (!runOk(r) || r.id !== S.eid || runOver(r)) return endFin(); }
-  S.i++; S.st = null; S.cards = null; S.marked = [];
+  S.i++; S.st = null; S.cards = null; S.marked = []; S.peek = S.easy;
   if (S.i < S.list.length) render(true); else fin();
 }
 
@@ -616,7 +641,7 @@ function fin() {
   const slot = (p, out) => p.lie < 0 ? "" : `<div class="slot${out ? " out" : ""}">${monster(p, false)}<span class="nm">${p.bad}</span><span>${out ? "逃げた" : "封じた"}</span></div>`;
   const mons = S.got.map((p) => slot(p, false)).join("") + S.lost.map((p) => slot(p, true)).join("");
   // 完封：ふつうの1回（6ページ）を、しおりに聞かずに全部一度で直した。巻の背に「完」の印が付く
-  const full6 = !S.only && S.list.length === PER, perfect = full6 && !S.lost.length && !S.hinted, firstKan = perfect && !mem.kanpu[b.id];
+  const full6 = !S.only && S.list.length === PER, perfect = full6 && !S.lost.length && !S.hinted && !S.easy, firstKan = perfect && !mem.kanpu[b.id];
   if (perfect) mem.kanpu[b.id] = 1;
   const fresh8 = achNow(mem).filter((a) => a.done && !mem.ach[a.id]);
   fresh8.forEach((a) => { mem.ach[a.id] = 1; });
@@ -624,7 +649,7 @@ function fin() {
   view().innerHTML = `<div class="panel" id="fin"><h2>${full ? `${b.name}の巻を取り戻した！` : `${b.name}の巻 ${n} / ${b.pages.length} ページ`}</h2>` +
     (perfect ? `<p class="kanpu" id="kanpu"><span class="big" aria-hidden="true">完</span><span>完封！${firstKan ? `<br><small>${b.name}の巻に印が付いた</small>` : ""}</span></p>` : "") +
     `<p>${S.list.length}ページ中 ${S.got.length}ページを一度で直した。${S.best >= 3 ? `れんぞく ${S.best}！` : ""}</p>` +
-    (full6 && !perfect ? `<p class="hint" id="kanhint">${S.hinted ? "しおりに聞かずに" : ""}6ページを一度で直すと「完封」。</p>` : "") +
+    (full6 && !perfect ? `<p class="hint" id="kanhint">${S.easy ? "下読みなしで" : S.hinted ? "しおりに聞かずに" : ""}6ページを一度で直すと「完封」。</p>` : "") +
     (fresh8.length ? `<p class="newach" id="newach">🏅 実績：${fresh8.map((a) => a.name).join("・")}</p>` : "") +
     (full && S.madeFull ? `<p class="learn" id="learn">${buddy(true)}<span>相棒のしおりが、新しい技「${ARTS[b.id]}」を覚えた！</span></p>` : "") +
     (mons ? `<div class="mons">${mons}</div>` : "") +
