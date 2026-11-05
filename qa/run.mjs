@@ -672,11 +672,11 @@ try {
     while ((await c.locator("#fin").count()) === 0) { const l = await c.evaluate(() => S.list[S.i].lie); await c.click(l < 0 ? "#none" : `button.w:not([data-k="${l}"])`); await c.click("#next"); }
     check("巻の終わりの逃げた魔は、色の薄さのほかに破線の枠と「逃げた」の文字で分かる", (await c.evaluate(() => [...document.querySelectorAll("#fin .slot.out")].every((x) => getComputedStyle(x).borderTopStyle === "dashed" && x.textContent.includes("逃げた")))) && (await c.locator("#fin .slot.out").count()) > 0);
     check("巻の終わりの知らせが #live に文字で出る", (await live()).includes("憲法の巻"));
-    const lv = await c.evaluate(() => { const t = today(); mem.days = { [t]: 12, [prevDay(t)]: 6, [prevDay(prevDay(t))]: 1 }; calView(t.slice(0, 7));
-      return [t, prevDay(t), prevDay(prevDay(t))].map((d) => { const el = document.querySelector(`#cal [data-day="${d}"]`); return el ? getComputedStyle(el, "::after").content : null; }); });
-    // 今日が月の1日・2日なら前の月の日はこの画面に無いので、ある日だけを見る
+    const lv = await c.evaluate(() => { const t = today(), dates = [t, prevDay(t), prevDay(prevDay(t))]; mem.days = { [t]: 12, [dates[1]]: 6, [dates[2]]: 1 }; calView(t.slice(0, 7));
+      return { month: t.slice(0, 7), dates, levels: dates.map((d) => { const el = document.querySelector(`#cal [data-day="${d}"]`); return el ? getComputedStyle(el, "::after").content : null; }) }; });
+    // 今日が月の1日・2日なら前の月の日はこの画面に無い。無くてよいのはその日だけ（同じ月の日が欠けたら落とす）
     const want = ['"•••"', '"••"', '"•"'];
-    check("カレンダーの灯りの段は、色の濃さのほかに点の数（• •• •••）でも分かる", lv.every((x, i) => x === null || x === want[i]) && lv[0] === want[0], lv.join(" "));
+    check("カレンダーの灯りの段は、色の濃さのほかに点の数（• •• •••）でも分かる", lv.levels.every((x, i) => (lv.dates[i].slice(0, 7) !== lv.month ? x === null : x === want[i])) && lv.levels[0] === want[0], lv.levels.join(" "));
     const keys = await c.evaluate(() => [...document.querySelectorAll(".keys i")].map((x) => getComputedStyle(x, "::after").content).join(" "));
     check("カレンダーの見本にも同じ点の数が出る", keys === want.slice().reverse().join(" "), keys);
     await c.evaluate(() => { document.documentElement.classList.add("a11y-cvd"); });
