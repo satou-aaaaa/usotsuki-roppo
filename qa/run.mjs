@@ -70,6 +70,11 @@ try {
   check("本棚に6冊の背表紙が並ぶ", (await page.locator(".spine").count()) === 6);
   check("前置きは一言（ねじれ文字）", (await page.textContent(".prolog")).includes("ねじれ文字"));
   check("本棚に相棒のしおりがいる（技はまだ無い）", (await page.locator("#buddy .buddy-svg.st0").count()) === 1 && (await page.textContent("#buddy")).includes("まだ無い"));
+  // 2b. はじめての人：下読みありで始まり、民法の巻に「はじめに」の印。ここからの検査は下読みなし（今までの遊び方）で通す
+  check("はじめての人は「下読みあり」から始まる", await page.evaluate(() => mem.opt.easy === true) && (await page.textContent("#easy")).includes("下読みあり"));
+  check("はじめての人には、民法の巻にだけ「はじめに」の印が出る", (await page.locator(".spine .first").count()) === 1 && (await page.locator('.spine[data-book="min"] .first').count()) === 1);
+  await page.click("#easy");
+  check("本棚のボタンで「下読みなし」に切り替えられ、記録に残る", (await page.textContent("#easy")).includes("下読みなし") && await page.evaluate(() => JSON.parse(localStorage.getItem(KEY)).opt.easy === false));
   check("画面に「人狼」という言葉が無い", !(await page.evaluate(() => document.documentElement.outerHTML)).includes("人狼"));
 
   // 3. 憲法の巻を全部正しく直す：一画面一問・うそを押すと札が3枚・直すと札に封じる・最後は大きな魔・10ページは2回に分けて読む
@@ -247,7 +252,7 @@ try {
 
   // 11. スマホ幅で横にはみ出さない（本棚・ページ・封じ帳）・エラーが出ない
   const wide = [];
-  await page.evaluate(() => { localStorage.removeItem(KEY); mem = load(); shelf(); });
+  await page.evaluate(() => { localStorage.removeItem(KEY); mem = load(); mem.opt.easy = false; shelf(); });
   if ((await page.evaluate(() => document.documentElement.scrollWidth)) > 390) wide.push("本棚");
   await page.click('.spine[data-book="kso"]');
   while ((await page.locator("#fin").count()) === 0) {
@@ -273,7 +278,7 @@ try {
   await q.goto(url);
   const old = await q.evaluate(() => ({ s: mem.solved.ken1, keep: mem.keep, kinds: ["days", "kanpu", "ach"].every((k) => mem[k] && typeof mem[k] === "object" && !Array.isArray(mem[k])) }));
   check("古い記録（solved だけ・形のちがう入れ物）を読んでも、直したページと知らない入れ物を消さず、足りない入れ物を補う", old.s === true && old.keep === 5 && old.kinds, JSON.stringify(old));
-  await q.evaluate(() => { localStorage.removeItem(KEY); mem = load(); shelf(); });
+  await q.evaluate(() => { localStorage.removeItem(KEY); mem = load(); mem.opt.easy = false; shelf(); });
 
   const jst = await q.evaluate(() => [dayOf(Date.UTC(2026, 10, 4, 14, 59)), dayOf(Date.UTC(2026, 10, 4, 15, 0)), prevDay("2026-11-01"), prevDay("2028-03-01")]);
   check("日付は日本時間で数える（UTC 15時で次の日・月や閏年をまたいで前の日）", jst.join() === "2026-11-04,2026-11-05,2026-10-31,2028-02-29", jst.join());
@@ -334,7 +339,7 @@ try {
   {
     const snap = () => q.evaluate(() => { const m = JSON.parse(localStorage.getItem(KEY)); return { kan: m.kanpu.ken, solved: Object.keys(m.solved).length, ach: Object.keys(m.ach).length, day: m.days[today()] || 0 }; });
     const want = await snap();
-    await q.evaluate(() => { mem = fresh(); shelf(); });
+    await q.evaluate(() => { mem = fresh(); mem.opt.easy = false; shelf(); });
     await q.click('.spine[data-book="ken"]');
     const lie = await q.evaluate(() => S.list[S.i].lie);
     await q.click(lie >= 0 ? `button.w:not([data-k="${lie}"])` : `.w[data-k="0"]`);
@@ -435,6 +440,51 @@ try {
   const src = readFileSync(path.join(root, "index.html"), "utf8");
   check("Math.random は札・ページの並びと大技の名前の2か所だけ（増やさない）", (src.match(/Math\.random/g) || []).length === 2);
   check("sort の比較の中で乱数を引かない", !/sort\([^)]*(random|r\(\))/.test(src));
+
+  // 14. 下読み（法律を知らなくても遊べる）：先に正しい条文だけを見せ、めくるとねじれ文字のページ。完封は下読みなしのときだけ
+  {
+    const e = await browser.newPage({ viewport: { width: 320, height: 760 } });
+    const errE = []; e.on("pageerror", (x) => errE.push(x.message));
+    await e.goto(url);
+    await e.click('.spine[data-book="min"]');
+    const seen = [], leaks = [];
+    // 画面に式のかけら（${…}）がそのまま出ていないか（2026-11-05 文字列の引用符をまちがえて、本棚のボタンに式が出た）
+    const leak = async (where) => { if (await e.evaluate(() => /\$\{|=>/.test(document.body.innerText))) leaks.push(where); };
+    await e.evaluate(() => shelf()); await leak("本棚"); await e.click('.spine[data-book="min"]');
+    let sawPeekEvery = true, sawSay = true, firstPeek = null;
+    while ((await e.locator("#fin").count()) === 0) {
+      const pk = await e.evaluate(() => { const p = S.list[S.i]; return { id: p.id, lie: p.lie, right: p.lie >= 0 ? p.w[p.lie] : null, bad: p.bad || null, correct: p.w.join(""),
+        peek: !!document.querySelector("#peek"), text: document.querySelector(".text")?.textContent, btns: document.querySelectorAll(".text button, #none, #shiori, .card").length,
+        says: document.querySelector(".q")?.textContent || "" }; });
+      if (!firstPeek) firstPeek = pk;
+      await leak("下読み");
+      seen.push(pk.id);
+      if (!pk.peek || pk.text !== pk.correct || pk.btns !== 0 || (pk.bad && pk.text.includes(pk.bad) && !pk.correct.includes(pk.bad)) || /うそは無い|うそがある/.test(pk.says)) sawPeekEvery = false;
+      await e.click("#flip");
+      const after = await e.evaluate(() => ({ peek: !!document.querySelector("#peek"), says: document.querySelector(".q").textContent, none: !!document.querySelector("#none") }));
+      if (after.peek || !after.none || !after.says.includes("下読みとちがう")) sawSay = false;
+      await leak("ページ");
+      if (pk.lie < 0) await e.click("#none");
+      else { await e.click(`.w[data-k="${pk.lie}"]`); await e.locator(".card", { hasText: pk.right }).first().click(); }
+      await e.click("#next");
+    }
+    check("下読みありでは、どのページも先に正しい条文だけが出る（押せる言葉・札・うその有無の言葉は無い）", sawPeekEvery && seen.length === 6, JSON.stringify(firstPeek));
+    check("「めくる」と、ねじれ文字のページになり「下読みとちがう言葉をタップ」と出る", sawSay);
+    await leak("巻の終わり");
+    check("画面に式のかけら（${…}・=>）がそのまま出ない（本棚・下読み・ページ・巻の終わり）", leaks.length === 0, [...new Set(leaks)].join(","));
+    check("下読みありで6ページ全部直しても完封にならず、「下読みなしで」と一言出す", (await e.locator("#kanpu").count()) === 0 && (await e.textContent("#kanhint")).includes("下読みなしで") && await e.evaluate(() => !mem.kanpu.min));
+    check("下読みありで直したページも封じ帳・記録に残る", await e.evaluate(() => S.got.length === 6 && S.got.every((p) => mem.solved[p.id])));
+    await e.click("#back");
+    check("1ページでも直したら「はじめに」の印は消える", (await e.locator(".spine .first").count()) === 0);
+    await e.reload();
+    check("開き直しても下読みありのまま（直した記録があっても、決めた設定を変えない）", await e.evaluate(() => mem.opt.easy === true) && (await e.textContent("#easy")).includes("下読みあり"));
+    check("下読みの画面が幅320pxで横にはみ出さない", await (async () => { await e.click('.spine[data-book="ken"]'); return (await e.evaluate(() => document.documentElement.scrollWidth)) <= 320 && (await e.locator("#peek").count()) === 1; })());
+    await e.addInitScript(() => { if (!sessionStorage.getItem("qa-old")) { sessionStorage.setItem("qa-old", "1"); localStorage.setItem("roppo-seal-v1", JSON.stringify({ solved: { ken1: true } })); } });
+    await e.reload();
+    check("今までの記録がある人（設定が無い）は、下読みなしのまま（遊び方を勝手に変えない）", await e.evaluate(() => mem.opt.easy === false) && (await e.locator(".spine .first").count()) === 0);
+    check("下読みの検査でページのエラーが無い", errE.length === 0, errE.join(" / "));
+    await e.close();
+  }
 
   // 12. PWA：ホーム画面に置ける形（manifest・アイコン）と、一度開けば電波が無くても遊べる（sw.js）。http で開いて確かめる
   const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".webmanifest": "application/manifest+json", ".png": "image/png" };
