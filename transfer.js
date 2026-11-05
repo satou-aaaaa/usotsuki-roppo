@@ -378,10 +378,11 @@
     var paste = el("textarea", { id: "hk-in", "aria-label": "引き継ぎコードを貼る", placeholder: "ここに引き継ぎコードを貼る", autocomplete: "off", spellcheck: "false" });
     var fileIn = el("input", { type: "file", accept: ".txt,text/plain" });
     fileIn.addEventListener("change", function () {
+      // 選び直したら、どの道でも先に番号を進める（前のファイルの読み取り結果で、いまのエラーを隠さない）
+      var my = ++req;
       var f = fileIn.files && fileIn.files[0];
       if (!f) return;
       if (f.size > MAX_JSON * 2) { err.textContent = ERR.big; err.hidden = false; return; }
-      var my = ++req;
       f.text().then(function (t) { if (my !== req) return; paste.value = t; tryImport(); }, function () { if (my !== req) return; err.textContent = ERR.form; err.hidden = false; });
     });
     function tryImport() {

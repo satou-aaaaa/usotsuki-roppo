@@ -59,6 +59,8 @@ export async function checkTransfer({ browser, url, game, sample, check, open })
   await pb.reload();
   await pb.waitForTimeout(300);
   const had = await dump(pb);
+  // QR から新しく開いたとき（読み込みの中で #hk= を見る道）を確かめるため、いったん別のページへ出る
+  await pb.goto("about:blank");
   await pb.goto(url + "#hk=" + code);
   await pb.waitForSelector("#hk-yes");
   await Promise.all([pb.waitForEvent("load"), pb.click("#hk-yes")]);
