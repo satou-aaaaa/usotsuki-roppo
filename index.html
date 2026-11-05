@@ -322,6 +322,7 @@ function merge() {
   if (!isObj(s)) return;
   for (const k of Object.keys(s)) if (!(k in mem)) mem[k] = s[k];
   for (const k of ["solved", "kanpu", "ach"]) if (isObj(s[k])) for (const [id, v] of Object.entries(s[k])) if (v && !mem[k][id]) mem[k][id] = v;
+  if (isObj(s.opt) && typeof s.opt.easy === "boolean") mem.opt.easy = s.opt.easy; // 下読みの設定は、最後に切り替えたタブの値に合わせる
   if (isObj(s.days)) for (const [d, n] of Object.entries(s.days)) if (typeof n === "number" && !(n <= (mem.days[d] || 0))) mem.days[d] = n;
 }
 function save() { try { merge(); localStorage.setItem(KEY, JSON.stringify(mem)); } catch (e) { /* 記録できなくても続ける */ } }
@@ -457,7 +458,8 @@ function shelf() {
   view().innerHTML = h;
   view().querySelectorAll(".spine").forEach((x) => x.addEventListener("click", () => openBook(x.dataset.book)));
   $("cho").addEventListener("click", cho);
-  $("easy").addEventListener("click", () => { mem.opt.easy = !easy(); save(); shelf(); });
+  // 読み直してから切り替えて書く（save() は読み直しで保存済みの設定に戻すので使わない）
+  $("easy").addEventListener("click", () => { try { merge(); } catch (e) { /* 読めなくても続ける */ } mem.opt.easy = !easy(); try { localStorage.setItem(KEY, JSON.stringify(mem)); } catch (e) { /* 記録できなくても続ける */ } shelf(); });
   $("achbtn").addEventListener("click", achView);
   $("calbtn").addEventListener("click", () => calView(today().slice(0, 7)));
 }
@@ -482,7 +484,8 @@ function words(p) {
 
 function render(turn) {
   frame();
-  const p = S.list[S.i], st = S.st, boss = p === bossOf(S.b);
+  // 下読みの間は巻末の枠を付けない（枠でうそがあると分かってしまう）
+  const p = S.list[S.i], st = S.st, boss = p === bossOf(S.b) && !(!st && S.peek);
   const gv = st && st.power ? POWER : S.streak % POWER;
   let h = `<div class="stage"><article class="page${boss ? " boss" : ""}${turn ? " turn" : ""}${st && st.power ? " power" : ""}" style="--c:${S.b.c}">` +
     `<div class="head"><span class="art">${p.art}</span><span class="gauge" id="gauge" aria-label="しおりの力 ${gv}/${POWER}">${buddy(false)}${"●".repeat(gv)}${"○".repeat(POWER - gv)}</span><span>${S.b.name}の巻　${S.i + 1} / ${S.list.length}</span></div>`;

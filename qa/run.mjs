@@ -455,11 +455,11 @@ try {
     while ((await e.locator("#fin").count()) === 0) {
       const pk = await e.evaluate(() => { const p = S.list[S.i]; return { id: p.id, lie: p.lie, right: p.lie >= 0 ? p.w[p.lie] : null, bad: p.bad || null, correct: p.w.join(""),
         peek: !!document.querySelector("#peek"), text: document.querySelector(".text")?.textContent, btns: document.querySelectorAll(".text button, #none, #shiori, .card").length,
-        says: document.querySelector(".q")?.textContent || "" }; });
+        says: document.querySelector(".q")?.textContent || "", view: document.getElementById("view")?.innerText || "", boss: !!document.querySelector(".page.boss, .chip") }; });
       if (!firstPeek) firstPeek = pk;
       await leak("下読み");
       seen.push(pk.id);
-      if (!pk.peek || pk.text !== pk.correct || pk.btns !== 0 || (pk.bad && pk.text.includes(pk.bad) && !pk.correct.includes(pk.bad)) || /うそは無い|うそがある/.test(pk.says)) sawPeekEvery = false;
+      if (!pk.peek || pk.text !== pk.correct || pk.btns !== 0 || (pk.bad && pk.text.includes(pk.bad) && !pk.correct.includes(pk.bad)) || /うそは無い|うそがある|潜んで/.test(pk.view) || pk.boss) sawPeekEvery = false;
       await e.click("#flip");
       const after = await e.evaluate(() => ({ peek: !!document.querySelector("#peek"), says: document.querySelector(".q").textContent, none: !!document.querySelector("#none") }));
       if (after.peek || !after.none || !after.says.includes("下読みとちがう")) sawSay = false;
@@ -468,7 +468,7 @@ try {
       else { await e.click(`.w[data-k="${pk.lie}"]`); await e.locator(".card", { hasText: pk.right }).first().click(); }
       await e.click("#next");
     }
-    check("下読みありでは、どのページも先に正しい条文だけが出る（押せる言葉・札・うその有無の言葉は無い）", sawPeekEvery && seen.length === 6, JSON.stringify(firstPeek));
+    check("下読みありでは、どのページも先に正しい条文だけが出る（押せる言葉・札・うその有無の言葉・巻末の枠は無い）", sawPeekEvery && seen.length === 6, JSON.stringify(firstPeek));
     check("「めくる」と、ねじれ文字のページになり「下読みとちがう言葉をタップ」と出る", sawSay);
     await leak("巻の終わり");
     check("画面に式のかけら（${…}・=>）がそのまま出ない（本棚・下読み・ページ・巻の終わり）", leaks.length === 0, [...new Set(leaks)].join(","));
@@ -476,6 +476,11 @@ try {
     check("下読みありで直したページも封じ帳・記録に残る", await e.evaluate(() => S.got.length === 6 && S.got.every((p) => mem.solved[p.id])));
     await e.click("#back");
     check("1ページでも直したら「はじめに」の印は消える", (await e.locator(".spine .first").count()) === 0);
+    // 別のタブで切り替えた設定を、このタブの保存で古い値に戻さない。このタブで切り替えた値も戻らない
+    const tabsE = await e.evaluate(() => { const o = JSON.parse(localStorage.getItem(KEY)); o.opt.easy = false; localStorage.setItem(KEY, JSON.stringify(o));
+      mem.solved.qaY = true; save(); const a = JSON.parse(localStorage.getItem(KEY)).opt.easy; delete mem.solved.qaY;
+      document.getElementById("easy").click(); const b = JSON.parse(localStorage.getItem(KEY)).opt.easy; save(); const c = JSON.parse(localStorage.getItem(KEY)).opt.easy; return { a, b, c, now: mem.opt.easy }; });
+    check("別のタブで切り替えた下読みの設定を古い値で書き戻さず、このタブで切り替えた値もそのあとの保存で戻らない", tabsE.a === false && tabsE.b === true && tabsE.c === true && tabsE.now === true, JSON.stringify(tabsE));
     await e.reload();
     check("開き直しても下読みありのまま（直した記録があっても、決めた設定を変えない）", await e.evaluate(() => mem.opt.easy === true) && (await e.textContent("#easy")).includes("下読みあり"));
     check("下読みの画面が幅320pxで横にはみ出さない", await (async () => { await e.click('.spine[data-book="ken"]'); return (await e.evaluate(() => document.documentElement.scrollWidth)) <= 320 && (await e.locator("#peek").count()) === 1; })());
