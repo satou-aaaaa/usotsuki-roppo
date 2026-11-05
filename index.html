@@ -197,6 +197,8 @@ footer a{color:var(--lamp)}
 /* all:unset のボタンでも、キーで選んだときの枠を必ず出す（いちばん最後に強く書く） */
 :is(.btn,.w,.card,.spine,.none,.shiori,button,a):focus-visible{outline:3px solid #fff!important;outline-offset:3px}
 </style>
+<!-- 引き継ぎコード（shared-workflows template/transfer.js の写し）。ゲームの script より前に置く -->
+<script src="transfer.js" data-game="usotsuki-roppo" data-keys="roppo-seal-v1"></script>
 </head>
 <body>
 <div class="moon" aria-hidden="true"></div>
@@ -216,6 +218,7 @@ footer a{color:var(--lamp)}
   <footer>
     <p>条文は「<a href="https://satou-aaaaa.github.io/tenbin/">天秤の書</a>」の照合済みの問題と、e-Gov 法令検索の条文で確かめ、短く言い換えたものです。記録はこの端末のブラウザにだけ残ります。法律相談ではありません。</p>
     <p><a href="classic.html">前の版（夜の村で見分ける）</a></p>
+    <p><a href="#" data-hk>記録の引き継ぎ（別の端末へ移す）</a></p>
     <p class="support">気に入ったら <a id="kofi" href="https://ko-fi.com/satouaaaaa" target="_blank" rel="noopener noreferrer">Ko-fi で応援する</a>（任意・遊ぶのは無料のまま）</p>
   </footer>
 </div>

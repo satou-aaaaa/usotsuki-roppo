@@ -3,7 +3,7 @@
 // 文字（Google Fonts）は一度取ったら保存したものを使う。記録（localStorage）には触らない。外へ何も送らない。
 const CACHE = "roppo-v5";
 const FONT_CACHE = "roppo-fonts";
-const SHELL = ["./", "./index.html", "./classic.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png"];
+const SHELL = ["./", "./index.html", "./classic.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./transfer.js"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

@@ -30,6 +30,7 @@ QA_SHIFT_DAYS=27 node qa/run.mjs   # カレンダー・日付を変えたとき�
 - 画面の HTML を `'…'` で組むときに `${…}` を書かない（式がそのまま出る。2026-11-05 本棚のボタンで起きかけ、画面の写しで見つけた。QA が画面の文字に `${` が無いか見る）。
 - 機能を足す・直すたびに `qa/run.mjs` に検査を足す。乱数で組む部分（ページの並び・札の並びなど）は、1回遊ぶだけでなく何百回も作って毎回の結果を確かめる（2026-10-31 段の話を使い切ると0人の村ができた。shared-workflows `incidents/2026-10-31-roppo-empty-village.md`）。
 - PWA（`manifest.webmanifest`・`sw.js`・`icon-*.png`）：画面のファイルを足したら `sw.js` の `SHELL` にも足し、中身を大きく変えたら `CACHE` の版を上げる。sw.js は外へ何も送らない（Google Fonts の文字を保存するだけ）。
+- 引き継ぎコード（別の端末へ記録を移す）：`transfer.js`・`qa/transfer-check.mjs` は shared-workflows の `template/` の写し（ここで直さない。直すときはひな形を直して配り、`引き継ぎの版` を上げる）。`index.html` の script の `data-keys` は記録のキーだけを書く。記録の形を変えたら `qa/run.mjs` の `checkTransfer` の `sample` も合わせる。sw.js の `SHELL` から `./transfer.js` を外さない（shared-workflows `routines/game-dev.md`「引き継ぎコード」）。
 - 応援は Ko-fi（https://ko-fi.com/satouaaaaa）へのただのリンクだけ。Ko-fi のボタン用スクリプトは入れない（外へ通信させない）。遊ぶのは無料のまま、有料版は置かない（GitHub Pages は売り買いが主目的のサイトに使えない）。
 - 公開リポジトリなので、個人情報・鍵を入れない。記録は遊ぶ人のブラウザ（localStorage）にだけ置き、外へ送らない。
 
