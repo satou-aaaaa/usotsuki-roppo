@@ -7,7 +7,7 @@
 //   - check(name, ok, detail): 結果を数える関数（qa/run.mjs のもの）
 //   - open（なくてよい）: async (page) => {} 「引き継ぎ」の data-hk を押せる画面まで進める
 // 見ること: 書き出し → 別の端末（新しい context）で QR の URL を開いて取り込み → 記録が同じ・前の記録は控えに残る・控えに戻せる、
-//          写しまちがい・別のゲーム・知らないキーのコードは弾く、ボタンは高さ44px以上、エラーが出ない。
+//          写しまちがい・別のゲーム・知らないキー・HTML の印の文字・大きく膨らむコードは弾く、ボタンは高さ44px以上、エラーが出ない。
 import { deflateRawSync } from "node:zlib";
 
 const CRC = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
@@ -28,7 +28,7 @@ export async function checkTransfer({ browser, url, game, sample, check, open })
     await h.click();
     await page.waitForSelector(".hk-box");
   };
-  const sizes = async (page) => page.$$eval(".hk-box button, .hk-box label.hk-file", (bs) => bs.filter((b) => b.offsetParent).map((b) => [b.textContent, Math.round(b.getBoundingClientRect().height)]).filter(([, h]) => h < 44));
+  const sizes = async (page) => page.$$eval(".hk-box button, .hk-box label.hk-file", (bs) => bs.filter((b) => b.offsetParent).map((b) => [b.textContent, b.getBoundingClientRect().height]).filter(([, h]) => h < 44));
 
   // 1. 書き出す（端末A）
   const A = await browser.newContext({ viewport: { width: 375, height: 740 } });
@@ -84,6 +84,8 @@ export async function checkTransfer({ browser, url, game, sample, check, open })
     ["別のゲーム", fakeCode({ g: game + "-other", v: 1, at: new Date().toISOString(), d: sample }), "別のゲーム"],
     ["知らないキー", fakeCode({ g: game, v: 1, at: new Date().toISOString(), d: { ...sample, "hk-backup:x": "1", "token": "x" } }), "このゲームの記録ではない"],
     ["新しい版", fakeCode({ g: game, v: 99, at: new Date().toISOString(), d: sample }), "新しい版"],
+    ["大きく膨らむ", "HK1." + deflateRawSync(Buffer.alloc(20 * 1024 * 1024, 48)).toString("base64url") + "." + crc36(deflateRawSync(Buffer.alloc(20 * 1024 * 1024, 48))), "大きすぎ"],
+    ["HTML の印の文字", fakeCode({ g: game, v: 1, at: new Date().toISOString(), d: { [Object.keys(sample)[0]]: JSON.stringify({ x: "<img src=x onerror=alert(1)>" }) } }), "使わない文字"],
   ];
   // 箱を開くまでの操作（遊び方を閉じるなど）でゲームが記録を書くことがあるので、一度開いてから比べる
   await openBox(pb);
