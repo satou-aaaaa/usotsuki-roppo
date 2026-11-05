@@ -271,6 +271,7 @@ const CVD = {
   D型: "0.367322 0.860646 -0.227968 0 0 0.280085 0.672501 0.047413 0 0 -0.011820 0.042940 0.968881 0 0 0 0 0 1 0",
   T型: "1.255528 -0.076749 -0.178779 0 0 -0.078411 0.930809 0.147602 0 0 0.004733 0.691367 0.303900 0 0 0 0 0 1 0",
 };
+const shots = [];
 for (const sc of screens) {
   const { ctx, page } = await openPage();
   try {
@@ -282,15 +283,17 @@ for (const sc of screens) {
         d.innerHTML = `<svg width="0" height="0" style="position:absolute"><filter id="a11y-f" color-interpolation-filters="linearRGB"><feColorMatrix type="matrix" values="${m}"/></filter></svg>`;
         document.body.appendChild(d); document.documentElement.style.filter = "url(#a11y-f)";
       }, [k, m]);
-      await page.screenshot({ path: path.join(out, `a11y-${sc.name}-${k}.png`) });
+      const file = `a11y-${sc.name}-${k}.png`;
+      await page.screenshot({ path: path.join(out, file) });
+      shots.push(file);
     }
-  } catch { /* 絵だけなので失敗にしない */ }
+  } catch (e) { console.log(`色覚の見え方の絵を撮れなかった：${sc.name}（${String(e.message || e).split("\n")[0]}）`); /* 絵だけなので失敗にしない */ }
   await ctx.close();
 }
 await browser.close();
 
 const fails = results.filter((r) => !r.ok);
-const md = `# 見やすさ・読みやすさの検査\n\n${results.map((r) => `- ${r.ok ? "✅" : "❌"} ${r.name}${r.detail ? `（${r.detail}）` : ""}`).join("\n")}\n\n色覚の見え方の絵：qa-report/a11y-*-P型.png・D型・T型（色だけで分けている所が無いか目で見る）\n`;
+const md = `# 見やすさ・読みやすさの検査\n\n${results.map((r) => `- ${r.ok ? "✅" : "❌"} ${r.name}${r.detail ? `（${r.detail}）` : ""}`).join("\n")}\n\n${shots.length ? `色覚の見え方の絵（色だけで分けている所が無いか目で見る）：${shots.map((f) => `qa-report/${f}`).join("・")}` : "色覚の見え方の絵：撮れなかった（上の知らせを見る）"}\n`;
 writeFileSync(path.join(out, "a11y.md"), md);
 console.log(md);
 console.log(fails.length ? `見やすさの検査：${fails.length}件の失敗` : `見やすさの検査：全部通った（${results.length}件）`);
