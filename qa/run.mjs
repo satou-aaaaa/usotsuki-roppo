@@ -546,6 +546,7 @@ try {
     // 画面に式のかけら（${…}）がそのまま出ていないか（2026-11-05 文字列の引用符をまちがえて、本棚のボタンに式が出た）
     const leak = async (where) => { if (await e.evaluate(() => /\$\{|=>/.test(document.body.innerText))) leaks.push(where); };
     await e.evaluate(() => shelf()); await leak("本棚"); await e.click('.spine[data-book="min"]');
+    check("下読みで本を開くと、条文へ枠が移り、読み上げソフトが条文を読む", await e.evaluate(() => !!document.querySelector("#peek") && document.activeElement?.classList.contains("text")));
     let sawPeekEvery = true, sawSay = true, firstPeek = null;
     while ((await e.locator("#fin").count()) === 0) {
       const pk = await e.evaluate(() => { const p = S.list[S.i]; return { id: p.id, lie: p.lie, right: p.lie >= 0 ? p.w[p.lie] : null, bad: p.bad || null, correct: p.w.join(""),
@@ -630,12 +631,72 @@ try {
     down = false;
     check("PWA の確かめでページのエラーが無い", errPw.length === 0, errPw.join(" / "));
   } finally { await ctx.close(); server.close(); }
+
+  // 色だけで分けない（WCAG 1.4.1。shared-workflows routines/game-dev.md A1・A7）：しおりの緑・選んだ言葉・直した言葉・逃げた魔・カレンダーの段に、
+  // 色のほかに記号（✓ ✕ •）・線の形・読み上げ用の名前があり、知らせは #live（role=status）に文字で出る。「色の見分けを助ける」で色の組も替わる
+  {
+    const c = await browser.newPage({ viewport: { width: 390, height: 800 } });
+    const errC = []; c.on("pageerror", (e) => errC.push(e.message));
+    await c.goto(url);
+    await c.evaluate(() => { localStorage.clear(); mem = fresh(); mem.opt.easy = false; save(); shelf(); });
+    const pseudo = (sel, which) => c.evaluate(([s, w]) => { const el = document.querySelector(s); return el ? getComputedStyle(el, w).content : ""; }, [sel, which]);
+    const live = async () => { await c.waitForTimeout(120); return (await c.textContent("#live")) || ""; };
+    check("知らせの場所 #live が role=status で、本文の main は丸ごと読み上げない", await c.evaluate(() => document.getElementById("live")?.getAttribute("role") === "status" && !document.getElementById("view").hasAttribute("aria-live")));
+    check("知らせの場所 #live は隠れていない", await c.evaluate(() => { const el = document.getElementById("live"); const cs = el && getComputedStyle(el); return !!cs && el.checkVisibility() && cs.visibility !== "hidden" && !el.closest("[hidden],[aria-hidden=true],[inert]"); }));
+    check("村の灯りの絵に、ともった家の数が名前で付く", /6軒のうち0軒/.test(await c.getAttribute("#town", "aria-label")));
+    await c.click('.spine[data-book="ken"]');
+    check("新しいページを開くと本文へ枠が移り、読み上げソフトが本文を読む（#view は丸ごと読まない）", await c.evaluate(() => document.activeElement?.classList.contains("text")));
+    check("見やすさの設定は、本を開いた画面でも上の「Aa」から開ける", await c.evaluate(() => (() => { const b = document.querySelector("header [data-a11y-open]"); return !!b && b.checkVisibility() && !b.disabled; })()));
+    await c.click("header [data-a11y-open]"); check("本を開いた画面で「Aa」を押すと、見やすさの設定が開く", await c.evaluate(() => !!document.querySelector("dialog[open]"))); await c.keyboard.press("Escape");
+    await c.click("#shiori");
+    check("しおりが緑にした言葉には ✓ と「正しい」の名前も付き、文も ✓ を言う", (await pseudo(".w.okw", "::before")).includes("✓") && (await c.textContent(".w.okw")).includes("正しい") && (await c.textContent(".q")).includes("✓") && (await live()).includes("✓"));
+    // うそのあるページまで進む（うその無いページは「うそは無い」で進む）
+    while ((await c.evaluate(() => S.list[S.i].lie)) < 0) { await c.click("#none"); await c.click("#next"); }
+    const lie = await c.evaluate(() => S.list[S.i].lie);
+    await c.click(`button.w:not([data-k="${lie}"])`);
+    check("まちがえて選んだ言葉は、色のほかに ✕ と破線の枠・「選んだ言葉」の名前で分かる", (await pseudo(".w.miss", "::before")).includes("✕") && (await c.evaluate(() => getComputedStyle(document.querySelector(".w.miss")).outlineStyle)) === "dashed" && (await c.textContent(".w.miss")).includes("選んだ言葉"));
+    check("逃げられた知らせが #live に文字で出る", (await live()).includes("逃げられた"));
+    check("答え合わせのあとの言葉は押せる形にしない（キーで押しても何も起きない所へ枠を止めない）", (await c.locator(".text.done button").count()) === 0);
+    check("正しい言葉は、色のほかに「正しい言葉」の名前でも分かる", (await c.textContent(".w.ans")).includes("正しい言葉"));
+    await c.click("#next");
+    while ((await c.locator("#fin").count()) === 0) {
+      const l = await c.evaluate(() => S.list[S.i].lie);
+      if (l < 0) { await c.click("#none"); await c.click("#next"); continue; }
+      await c.click(`button.w[data-k="${l}"]`);
+      const cs = { name: (await c.textContent(".w.lie")) || "", deco: await c.evaluate(() => getComputedStyle(document.querySelector(".w.lie")).textDecorationLine), focus: await c.evaluate(() => document.activeElement?.classList.contains("card")), said: await live() };
+      check("うその言葉は、色のほかに取り消し線と「うその言葉」の名前で分かり、札に枠が移り、知らせが出る", cs.name.includes("うその言葉") && cs.deco.includes("line-through") && cs.focus && cs.said.includes("姿を現した"), JSON.stringify(cs));
+      await c.click(`.card:text-is("${await c.evaluate(() => S.list[S.i].w[S.list[S.i].lie])}")`);
+      check("直した言葉は、色のほかに ✓ と「直した」の名前で分かり、封じた知らせが出る", (await pseudo(".w.fixed", "::after")).includes("✓") && (await c.textContent(".w.fixed")).includes("直した") && (await live()).includes("封じた"));
+      await c.click("#next"); break;
+    }
+    while ((await c.locator("#fin").count()) === 0) { const l = await c.evaluate(() => S.list[S.i].lie); await c.click(l < 0 ? "#none" : `button.w:not([data-k="${l}"])`); await c.click("#next"); }
+    check("巻の終わりの逃げた魔は、色の薄さのほかに破線の枠と「逃げた」の文字で分かる", (await c.evaluate(() => [...document.querySelectorAll("#fin .slot.out")].every((x) => getComputedStyle(x).borderTopStyle === "dashed" && x.textContent.includes("逃げた")))) && (await c.locator("#fin .slot.out").count()) > 0);
+    check("巻の終わりの知らせが #live に文字で出る", (await live()).includes("憲法の巻"));
+    const lv = await c.evaluate(() => { const t = today(), dates = [t, prevDay(t), prevDay(prevDay(t))]; mem.days = { [t]: 12, [dates[1]]: 6, [dates[2]]: 1 }; calView(t.slice(0, 7));
+      return { month: t.slice(0, 7), dates, levels: dates.map((d) => { const el = document.querySelector(`#cal [data-day="${d}"]`); return el ? getComputedStyle(el, "::after").content : null; }) }; });
+    // 今日が月の1日・2日なら前の月の日はこの画面に無い。無くてよいのはその日だけ（同じ月の日が欠けたら落とす）
+    const want = ['"•••"', '"••"', '"•"'];
+    check("カレンダーの灯りの段は、色の濃さのほかに点の数（• •• •••）でも分かる", lv.levels.every((x, i) => (lv.dates[i].slice(0, 7) !== lv.month ? x === null : x === want[i])) && lv.levels[0] === want[0], lv.levels.join(" "));
+    const keys = await c.evaluate(() => [...document.querySelectorAll(".keys i")].map((x) => getComputedStyle(x, "::after").content).join(" "));
+    check("カレンダーの見本にも同じ点の数が出る", keys === want.slice().reverse().join(" "), keys);
+    await c.evaluate(() => { document.documentElement.classList.add("a11y-cvd"); });
+    const cvd = await c.evaluate(() => { const s = getComputedStyle(document.documentElement); return [s.getPropertyValue("--lie").trim(), s.getPropertyValue("--fix").trim()].join(","); });
+    check("「色の見分けを助ける」では、うそ＝朱・直した＝青の組に替わる", cvd.toLowerCase() === "#a63d00,#005a8c", cvd);
+    check("色だけで分けない検査で画面のエラーが無い", errC.length === 0, errC.join(" / "));
+    await c.close();
+  }
   try { // 引き継ぎコード（別の端末へ記録を移す。shared-workflows template/qa/transfer-check.mjs）
     const rec = { solved: { "ken-1": 1 }, days: { "2026-11-01": 6 }, kanpu: {}, ach: {} };
     await checkTransfer({ browser, url, game: "usotsuki-roppo", sample: { "roppo-seal-v1": JSON.stringify(rec) }, check });
   } catch (e) { check("引き継ぎコード", false, e.message.split("\n")[0]); }
 } finally {
   await browser.close();
+}
+
+{ // 見やすさ・読みやすさ・偏り（shared-workflows template/qa/a11y.mjs の写し。routines/game-dev.md「だれでも遊べるように」）
+  const { spawnSync } = await import("node:child_process");
+  const a = spawnSync(process.execPath, [path.join(root, "qa", "a11y.mjs")], { encoding: "utf8", env: process.env });
+  check("見やすさ・読みやすさの検査（qa/a11y.mjs。中身は qa-report/a11y.md）", a.status === 0, (a.stdout.match(/^- ❌.*$/gm) || []).join(" / ") || (a.status ? a.stderr.slice(-300) : ""));
 }
 
 const failed = results.filter((r) => !r.ok);

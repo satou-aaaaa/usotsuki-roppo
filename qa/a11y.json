@@ -1,0 +1,11 @@
+{
+  "screens": [
+    { "name": "下読み", "click": [".spine[data-book=\"min\"]"] },
+    { "name": "ページ", "click": [".spine[data-book=\"min\"]", "#flip"] },
+    { "name": "答え合わせ", "click": [".spine[data-book=\"min\"]", "#flip", "#none"] },
+    { "name": "巻の終わり", "click": [".spine[data-book=\"min\"]", "#flip", "#none", "#next", "#flip", "#none", "#next", "#flip", "#none", "#next", "#flip", "#none", "#next", "#flip", "#none", "#next", "#flip", "#none", "#next"] },
+    { "name": "封じ帳", "click": ["#cho"] },
+    { "name": "実績", "click": ["#achbtn"] },
+    { "name": "カレンダー", "click": ["#calbtn"] }
+  ]
+}
