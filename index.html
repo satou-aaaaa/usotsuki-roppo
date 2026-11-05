@@ -458,8 +458,8 @@ function shelf() {
   view().innerHTML = h;
   view().querySelectorAll(".spine").forEach((x) => x.addEventListener("click", () => openBook(x.dataset.book)));
   $("cho").addEventListener("click", cho);
-  // 読み直してから切り替えて書く（save() は読み直しで保存済みの設定に戻すので使わない）
-  $("easy").addEventListener("click", () => { try { merge(); } catch (e) { /* 読めなくても続ける */ } mem.opt.easy = !easy(); try { localStorage.setItem(KEY, JSON.stringify(mem)); } catch (e) { /* 記録できなくても続ける */ } shelf(); });
+  // 画面に出ている値を反転し、読み直しのあとに書く（save() は読み直しで保存済みの設定に戻すので使わない）
+  $("easy").addEventListener("click", () => { const shown = easy(); try { merge(); } catch (e) { /* 読めなくても続ける */ } mem.opt.easy = !shown; try { localStorage.setItem(KEY, JSON.stringify(mem)); } catch (e) { /* 記録できなくても続ける */ } shelf(); });
   $("achbtn").addEventListener("click", achView);
   $("calbtn").addEventListener("click", () => calView(today().slice(0, 7)));
 }

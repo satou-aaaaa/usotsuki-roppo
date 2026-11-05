@@ -480,6 +480,11 @@ try {
     const tabsE = await e.evaluate(() => { const o = JSON.parse(localStorage.getItem(KEY)); o.opt.easy = false; localStorage.setItem(KEY, JSON.stringify(o));
       mem.solved.qaY = true; save(); const a = JSON.parse(localStorage.getItem(KEY)).opt.easy; delete mem.solved.qaY;
       document.getElementById("easy").click(); const b = JSON.parse(localStorage.getItem(KEY)).opt.easy; save(); const c = JSON.parse(localStorage.getItem(KEY)).opt.easy; return { a, b, c, now: mem.opt.easy }; });
+    // 画面は「あり」のまま、別のタブで「なし」に変えたあとでボタンを押すと、画面の値を反転して「なし」になる（押したのに変わらない、にしない）
+    const staleE = await e.evaluate(() => { mem.opt.easy = true; shelf(); const o = JSON.parse(localStorage.getItem(KEY)); o.opt.easy = false; localStorage.setItem(KEY, JSON.stringify(o));
+      document.getElementById("easy").click(); const r = { saved: JSON.parse(localStorage.getItem(KEY)).opt.easy, now: mem.opt.easy, label: document.getElementById("easy").textContent };
+      document.getElementById("easy").click(); return r; });
+    check("画面の表示が古くても、ボタンを押すと表示とは逆の設定になる", staleE.saved === false && staleE.now === false && staleE.label.includes("下読みなし"), JSON.stringify(staleE));
     check("別のタブで切り替えた下読みの設定を古い値で書き戻さず、このタブで切り替えた値もそのあとの保存で戻らない", tabsE.a === false && tabsE.b === true && tabsE.c === true && tabsE.now === true, JSON.stringify(tabsE));
     await e.reload();
     check("開き直しても下読みありのまま（直した記録があっても、決めた設定を変えない）", await e.evaluate(() => mem.opt.easy === true) && (await e.textContent("#easy")).includes("下読みあり"));
