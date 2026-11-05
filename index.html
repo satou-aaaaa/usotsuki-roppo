@@ -661,11 +661,11 @@ function render(turn) {
   if (!st && S.peek) {
     // 下読み：正しい条文だけを見せる（うそがあるかどうかは言わない）
     h += '<p class="peek-tag" id="peek">📖 下読み：これが正しい条文</p>' +
-      `<div class="text done clean" data-a11y-say>${p.w.map((x) => `<span class="w">${x}</span>`).join("")}</div>` +
+      `<div class="text done clean" tabindex="-1" data-a11y-say>${p.w.map((x) => `<span class="w">${x}</span>`).join("")}</div>` +
       '<p class="q" data-a11y-say>しおり「覚えたら、めくってね。ねじれ文字が1か所を書き換えるかも」</p>' +
       '<button class="btn go" id="flip">めくる</button></article></div>';
     view().innerHTML = h;
-    const fl = $("flip"); fl.focus({ preventScroll: true }); fl.addEventListener("click", () => { S.peek = false; render(true); });
+    const fl = $("flip"); const ptx = view().querySelector(".text"); (turn && ptx ? ptx : fl).focus({ preventScroll: true }); fl.addEventListener("click", () => { S.peek = false; render(true); });
     return;
   }
   if (boss && !st) h += '<p style="margin:0"><span class="chip">巻末：大きなねじれ文字が潜んでいる</span></p>';

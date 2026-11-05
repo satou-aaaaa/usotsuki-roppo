@@ -451,6 +451,7 @@ try {
     // 画面に式のかけら（${…}）がそのまま出ていないか（2026-11-05 文字列の引用符をまちがえて、本棚のボタンに式が出た）
     const leak = async (where) => { if (await e.evaluate(() => /\$\{|=>/.test(document.body.innerText))) leaks.push(where); };
     await e.evaluate(() => shelf()); await leak("本棚"); await e.click('.spine[data-book="min"]');
+    check("下読みで本を開くと、条文へ枠が移り、読み上げソフトが条文を読む", await e.evaluate(() => !!document.querySelector("#peek") && document.activeElement?.classList.contains("text")));
     let sawPeekEvery = true, sawSay = true, firstPeek = null;
     while ((await e.locator("#fin").count()) === 0) {
       const pk = await e.evaluate(() => { const p = S.list[S.i]; return { id: p.id, lie: p.lie, right: p.lie >= 0 ? p.w[p.lie] : null, bad: p.bad || null, correct: p.w.join(""),
@@ -547,10 +548,11 @@ try {
     const live = async () => { await c.waitForTimeout(120); return (await c.textContent("#live")) || ""; };
     check("知らせの場所 #live が role=status で、本文の main は丸ごと読み上げない", await c.evaluate(() => document.getElementById("live")?.getAttribute("role") === "status" && !document.getElementById("view").hasAttribute("aria-live")));
     check("知らせの場所 #live は隠れていない", await c.evaluate(() => { const el = document.getElementById("live"); const cs = el && getComputedStyle(el); return !!cs && el.checkVisibility() && cs.visibility !== "hidden" && !el.closest("[hidden],[aria-hidden=true],[inert]"); }));
-    check("見やすさの設定は、本を開いた画面でも上の「Aa」から開ける", await c.evaluate(() => !!document.querySelector("header [data-a11y-open]")));
     check("村の灯りの絵に、ともった家の数が名前で付く", /6軒のうち0軒/.test(await c.getAttribute("#town", "aria-label")));
     await c.click('.spine[data-book="ken"]');
     check("新しいページを開くと本文へ枠が移り、読み上げソフトが本文を読む（#view は丸ごと読まない）", await c.evaluate(() => document.activeElement?.classList.contains("text")));
+    check("見やすさの設定は、本を開いた画面でも上の「Aa」から開ける", await c.evaluate(() => (() => { const b = document.querySelector("header [data-a11y-open]"); return !!b && b.checkVisibility() && !b.disabled; })()));
+    await c.click("header [data-a11y-open]"); check("本を開いた画面で「Aa」を押すと、見やすさの設定が開く", await c.evaluate(() => !!document.querySelector("dialog[open]"))); await c.keyboard.press("Escape");
     await c.click("#shiori");
     check("しおりが緑にした言葉には ✓ と「正しい」の名前も付き、文も ✓ を言う", (await pseudo(".w.okw", "::before")).includes("✓") && (await c.textContent(".w.okw")).includes("正しい") && (await c.textContent(".q")).includes("✓") && (await live()).includes("✓"));
     // うそのあるページまで進む（うその無いページは「うそは無い」で進む）
