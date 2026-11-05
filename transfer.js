@@ -1,5 +1,5 @@
 // 引き継ぎコード（transfer.js）：このゲームの記録を「コード」と「QR」にして、別の端末へ移す。サーバーは使わない。
-// 引き継ぎの版: 3
+// 引き継ぎの版: 4
 // 正：satou-aaaaa/shared-workflows の template/transfer.js（各ゲームはこれをそのまま写す。直すときはひな形を直して配り、版を上げる）
 // 使い方（index.html の <head> の中、ゲームの script より前に、defer を付けずに置く）:
 //   <script src="transfer.js" data-game="kippu-10" data-keys="kippu-v1"></script>
@@ -17,7 +17,7 @@
 //   - 外へ通信しない（fetch・XMLHttpRequest・外のスクリプトを使わない）。QR は下の qrcode-generator（MIT）をこのファイルの中で作る。
 (function () {
   "use strict";
-  var VERSION = 3;
+  var VERSION = 4;
   var me = document.currentScript;
   var cfg = window.HK_CONFIG || {};
   var GAME = cfg.game || (me && me.dataset.game) || "";
@@ -57,10 +57,12 @@
       Object.keys(old).forEach(function (k) { localStorage.removeItem(k); });
       Object.keys(d).forEach(function (k) { localStorage.setItem(k, d[k]); });
     } catch (e) {
+      var back = true;
       try {
         Object.keys(d).forEach(function (k) { localStorage.removeItem(k); });
         Object.keys(old).forEach(function (k) { localStorage.setItem(k, old[k]); });
-      } catch (e2) { /* ここまで来たら何もできない */ }
+      } catch (e2) { back = false; /* 元にも戻せなかった。控えを残して「控えに戻す」で戻してもらう */ }
+      e.rolledBack = back;
       throw e;
     }
   }
@@ -94,6 +96,7 @@
     return new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer().then(function (b) { return new Uint8Array(b); });
   }
   function encode(d) {
+    if (!count(d)) return Promise.reject(fail("empty")); // 記録が無いコードは、受け取る側で必ず弾かれるので作らない
     var json = JSON.stringify({ g: GAME, v: VERSION, at: new Date().toISOString(), d: d });
     var raw = new TextEncoder().encode(json);
     // 受け取る側が弾く大きさのコードは作らない（書き出しは成功したのに取り込めない、をなくす）
@@ -110,8 +113,8 @@
   // 貼られた文字から、コードの部分だけを取り出す（URL ごと貼っても、改行や空白が混じってもよい）
   function clean(text) {
     var s = String(text || "");
-    // URL の途中で改行されていても、コードに使う文字（と改行）が続くあいだは1つのコードとして取る
-    var m = s.match(/[#&]hk=([A-Za-z0-9_.%-]+(?:[\r\n]+[A-Za-z0-9_.%-]+)*)/);
+    // URL の途中で改行されていても（改行のあとの字下げも）、コードに使う文字が続くあいだは1つのコードとして取る
+    var m = s.match(/[#&]hk=([A-Za-z0-9_.%-]+(?:[ \t]*[\r\n]+[ \t]*[A-Za-z0-9_.%-]+)*)/);
     if (m) { try { s = decodeURIComponent(m[1]); } catch (e) { s = m[1]; } }
     return s.replace(/\s+/g, "");
   }
@@ -123,6 +126,7 @@
     keys: "このゲームの記録ではない中身が入っています。",
     bad: "記録に使わない文字が入っています。書き出した端末でもう一度作ってください。",
     big: "記録が大きすぎます。",
+    empty: "まだ記録がありません。",
     newer: "新しい版の引き継ぎコードです。ページを読み直して（アプリを開き直して）から試してください。",
   };
   // 記録の中の文字に、HTML の印になる文字が無いか（JSON ならキーと文字の値を全部見る）
@@ -144,7 +148,10 @@
   // 縮めたコードを、読みながら大きさを数えて広げる。MAX_JSON を超えたらそこでやめる
   // （小さなコードが何百MBにも膨らむと、開いただけでタブが固まるため。版3、CodeRabbit の指摘）
   function inflate(bytes) {
-    var reader = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw")).getReader();
+    // deflate-raw を知らない古いブラウザは、ここで作れずに投げる（形のまちがいでなく「古い」と知らせる。版4）
+    var ds;
+    try { ds = new DecompressionStream("deflate-raw"); } catch (e) { throw fail("old"); }
+    var reader = new Blob([bytes]).stream().pipeThrough(ds).getReader();
     var parts = [], total = 0;
     function next() {
       return reader.read().then(function (r) {
@@ -195,7 +202,7 @@
     var p;
     try { p = sessionStorage.getItem(PENDING); sessionStorage.removeItem(PENDING); } catch (e) { return; }
     if (!p) return;
-    var msg;
+    var msg, partial = false, undo = false;
     try {
       var job = JSON.parse(p);
       // いまの data-keys の外のキー（前の版の控えに入っていた a11y-v1 など）は書かない
@@ -209,15 +216,20 @@
       var prev = localStorage.getItem(BACKUP);
       if (count(cur)) localStorage.setItem(BACKUP, JSON.stringify({ at: new Date().toISOString(), d: cur }));
       try { replaceAll(job.d); } catch (e) {
+        // 元に戻せなかったときは、いまの記録の控えを消さない（それが前の記録のただ1つの写し）
+        if (e.rolledBack === false) { partial = true; throw e; }
         try { if (prev == null) localStorage.removeItem(BACKUP); else localStorage.setItem(BACKUP, prev); } catch (e2) { /* なし */ }
         throw e;
       }
       if (!count(cur) && job.undo) { try { localStorage.removeItem(BACKUP); } catch (e) { /* なし */ } }
       msg = job.undo ? "取り込む前の記録に戻しました" : "記録を引き継ぎました";
+      undo = !job.undo && count(cur) > 0;
     } catch (e) {
-      msg = "引き継げませんでした（端末の空きが足りないかもしれません）。記録は元のままです";
+      undo = partial;
+      msg = partial ? "途中で止まりました（端末の空きが足りないかもしれません）。「引き継ぎ」の「控えに戻す」で前の記録に戻せます" : "引き継げませんでした（端末の空きが足りないかもしれません）。記録は元のままです";
     }
-    try { sessionStorage.setItem(DONE, msg); } catch (e) { /* なし */ }
+    // u：知らせに「控えに戻す」を付ける（取り込んだ記録の形でゲームが動かなくても、ここから戻せるように。版4）
+    try { sessionStorage.setItem(DONE, JSON.stringify({ m: msg, u: undo })); } catch (e) { /* なし */ }
   })();
 
   // ---- 画面 ----
@@ -242,7 +254,10 @@
     ".hk-box [hidden]{display:none!important}",
     ".hk-err{color:var(--hk-err)!important;font-weight:bold}",
     ".hk-file input{position:absolute;width:1px;height:1px;opacity:0}",
-    ".hk-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2147483001;background:#222;color:#fff;padding:12px 18px;border-radius:12px;font:14px/1.5 system-ui,sans-serif;max-width:calc(100% - 32px)}",
+    ".hk-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2147483001;background:#222;color:#fff;padding:12px 18px;border-radius:12px;font:14px/1.5 system-ui,sans-serif;max-width:calc(100% - 32px);box-sizing:border-box}",
+    ".hk-toast .hk-row{margin-top:6px}",
+    ".hk-toast button{min-height:44px;min-width:44px;padding:8px 14px;border-radius:10px;border:1px solid #888;background:transparent;color:#fff;font:inherit;cursor:pointer}",
+    ".hk-toast button:focus-visible{outline:3px solid #5b9cff;outline-offset:2px}",
   ].join("\n");
   var back = null, lastFocus = null, req = 0;
   function el(tag, attrs, kids) {
@@ -257,11 +272,19 @@
     s.textContent = CSS;
     document.head.appendChild(s);
   }
-  function toast(text) {
+  // withUndo のときは自分では消えず、「控えに戻す」「閉じる」を出す（ゲームの画面が出なくても戻せるように）
+  function toast(text, withUndo) {
     style();
-    var t = el("div", { class: "hk-toast", role: "status", text: text });
+    var t = el("div", { class: "hk-toast", role: "status" }, [el("div", { text: text })]);
+    function gone() { if (t.parentNode) t.parentNode.removeChild(t); }
+    var b = withUndo ? readBackup() : null;
+    if (b) {
+      t.appendChild(el("div", { class: "hk-row" }, [
+        btn("控えに戻す", function () { gone(); confirmUndo(b); }, false, "hk-toast-undo"),
+        btn("閉じる", gone, false, "hk-toast-close"),
+      ]));
+    } else setTimeout(gone, 4000);
     document.body.appendChild(t);
-    setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 4000);
   }
   function close() {
     req++; // 読み取り中のコードの結果は、閉じたあとに画面へ出さない
@@ -283,6 +306,7 @@
   }
   // 箱を開いて中身を入れかえる
   function show(kids, focusSel) {
+    req++; // 画面を替えたら、読み取り中のコードの結果は出さない
     style();
     if (!back) {
       lastFocus = document.activeElement;
@@ -357,7 +381,8 @@
       var f = fileIn.files && fileIn.files[0];
       if (!f) return;
       if (f.size > MAX_JSON * 2) { err.textContent = ERR.big; err.hidden = false; return; }
-      f.text().then(function (t) { paste.value = t; tryImport(); }, function () { err.textContent = ERR.form; err.hidden = false; });
+      var my = ++req;
+      f.text().then(function (t) { if (my !== req) return; paste.value = t; tryImport(); }, function () { if (my !== req) return; err.textContent = ERR.form; err.hidden = false; });
     });
     function tryImport() {
       err.hidden = true;
@@ -427,7 +452,11 @@
     });
     var msg = null;
     try { msg = sessionStorage.getItem(DONE); sessionStorage.removeItem(DONE); } catch (e) { /* なし */ }
-    if (msg) toast(msg);
+    if (msg) {
+      var o = null;
+      try { o = JSON.parse(msg); } catch (e) { /* 前の版の知らせ（ただの文字） */ }
+      if (o && typeof o.m === "string") toast(o.m, !!o.u); else toast(msg);
+    }
     checkHash();
     window.addEventListener("hashchange", checkHash);
   }

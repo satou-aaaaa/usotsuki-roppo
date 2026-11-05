@@ -66,6 +66,11 @@ export async function checkTransfer({ browser, url, game, sample, check, open })
   check("引き継ぎ：取り込むと同じ記録になる", JSON.stringify(await dump(pb)) === want);
   check("引き継ぎ：取り込んだあと URL にコードが残らない", !pb.url().includes("#hk="), pb.url());
   check("引き継ぎ：取り込んだと知らせる", (await pb.locator(".hk-toast").count()) === 1);
+  // 知らせは消えずに「控えに戻す」を出す（取り込んだ記録でゲームの画面が出なくても戻せるように。版4）
+  const tu = await pb.$$eval("#hk-toast-undo, #hk-toast-close", (bs) => bs.map((b) => b.getBoundingClientRect().height));
+  check("引き継ぎ：取り込んだ知らせに「控えに戻す」「閉じる」があり、44px以上", tu.length === 2 && tu.every((h) => h >= 44), JSON.stringify(tu));
+  await pb.click("#hk-toast-close");
+  check("引き継ぎ：知らせは「閉じる」で消える", (await pb.locator(".hk-toast").count()) === 0);
   const bak = await pb.evaluate((g) => JSON.parse(localStorage.getItem("hk-backup:" + g) || "null"), game);
   check("引き継ぎ：前の記録を控えに残す", bak && JSON.stringify(Object.fromEntries(Object.entries(bak.d).sort())) === JSON.stringify(had));
 
