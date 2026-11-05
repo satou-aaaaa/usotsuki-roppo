@@ -5,6 +5,7 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import http from "node:http";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { checkTransfer } from "./transfer-check.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const url = "file://" + path.join(root, "index.html");
@@ -235,7 +236,7 @@ try {
   const kofi = await page.locator("#kofi").evaluate((a) => ({ href: a.href, rel: a.rel })).catch(() => null);
   check("応援のリンクが Ko-fi のページを指す", kofi && kofi.href === "https://ko-fi.com/satouaaaaa", kofi?.href || "無い");
   check("応援のリンクは noopener つき", kofi && kofi.rel.includes("noopener"));
-  check("外のスクリプトを読まない", (await page.locator("script[src]").count()) === 0);
+  check("外のスクリプトを読まない（読むのは同じ所の引き継ぎコード transfer.js だけ）", (await page.$$eval("script[src]", (xs) => xs.map((x) => x.getAttribute("src")))).every((s) => s === "transfer.js"));
 
   // 10. 前の版（classic.html）も開ける
   const p3 = await browser.newPage({ viewport: { width: 390, height: 800 } });
@@ -475,6 +476,10 @@ try {
     down = false;
     check("PWA の確かめでページのエラーが無い", errPw.length === 0, errPw.join(" / "));
   } finally { await ctx.close(); server.close(); }
+  try { // 引き継ぎコード（別の端末へ記録を移す。shared-workflows template/qa/transfer-check.mjs）
+    const rec = { solved: { "ken-1": 1 }, days: { "2026-11-01": 6 }, kanpu: {}, ach: {} };
+    await checkTransfer({ browser, url, game: "usotsuki-roppo", sample: { "roppo-seal-v1": JSON.stringify(rec) }, check });
+  } catch (e) { check("引き継ぎコード", false, e.message.split("\n")[0]); }
 } finally {
   await browser.close();
 }

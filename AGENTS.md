@@ -28,6 +28,7 @@ QA_SHIFT_DAYS=27 node qa/run.mjs   # カレンダー・日付を変えたとき�
 - 記録 `roppo-seal-v1` は `solved`・`days`（日本時間の日付ごとに読んだページ数）・`kanpu`・`ach`（結果で知らせた実績）。`load` は足りない入れ物を `fresh()` で補い、古い記録・知らない入れ物を消さない。保存の前と巻の終わりに記録を読み直して合わせる（`merge`：`solved`・`kanpu`・`ach` は足し合わせ、`days` は日ごとに多いほう。古いタブで別のタブの記録を消さない）。実績（`ACH`、13個）はいまの記録から毎回数え、続けるは連続でなく遊んだ日の合計。カレンダーの「続けて」は1日以上のときだけ出し、休んだ日を責める言葉を書かない。今日のお題は無い（足すなら日付の種から決め、だれでも同じにする）。
 - 機能を足す・直すたびに `qa/run.mjs` に検査を足す。乱数で組む部分（ページの並び・札の並びなど）は、1回遊ぶだけでなく何百回も作って毎回の結果を確かめる（2026-10-31 段の話を使い切ると0人の村ができた。shared-workflows `incidents/2026-10-31-roppo-empty-village.md`）。
 - PWA（`manifest.webmanifest`・`sw.js`・`icon-*.png`）：画面のファイルを足したら `sw.js` の `SHELL` にも足し、中身を大きく変えたら `CACHE` の版を上げる。sw.js は外へ何も送らない（Google Fonts の文字を保存するだけ）。
+- 引き継ぎコード（別の端末へ記録を移す）：`transfer.js`・`qa/transfer-check.mjs` は shared-workflows の `template/` の写し（ここで直さない。直すときはひな形を直して配り、`引き継ぎの版` を上げる）。`index.html` の script の `data-keys` は記録のキーだけを書く。記録の形を変えたら `qa/run.mjs` の `checkTransfer` の `sample` も合わせる。sw.js の `SHELL` から `./transfer.js` を外さない（shared-workflows `routines/game-dev.md`「引き継ぎコード」）。
 - 応援は Ko-fi（https://ko-fi.com/satouaaaaa）へのただのリンクだけ。Ko-fi のボタン用スクリプトは入れない（外へ通信させない）。遊ぶのは無料のまま、有料版は置かない（GitHub Pages は売り買いが主目的のサイトに使えない）。
 - 公開リポジトリなので、個人情報・鍵を入れない。記録は遊ぶ人のブラウザ（localStorage）にだけ置き、外へ送らない。
 
