@@ -414,6 +414,7 @@ try {
 
   // 押せる所の高さ（44px以上）とキーで選んだときの枠（2px以上）
   const small = [], noRing = [];
+  const wide2 = [];
   const measure = async (where) => {
     for (const r of await q.evaluate(() => [...document.querySelectorAll("button, .btn, a.btn")].filter((x) => x.offsetParent).map((x) => ({ t: x.id || x.className || x.textContent.slice(0, 6), h: x.getBoundingClientRect().height }))))
       if (r.h < 44) small.push(`${where}:${r.t}:${Math.round(r.h)}`);
@@ -421,19 +422,101 @@ try {
     for (const r of await q.evaluate(() => [...document.querySelectorAll("button")].filter((x) => x.offsetParent && !x.disabled).map((x) => { x.focus(); const o = getComputedStyle(x); return { t: x.id || x.className, ok: x.matches(":focus-visible") && parseFloat(o.outlineWidth) >= 2 && o.outlineStyle !== "none" }; })))
       if (!r.ok) noRing.push(`${where}:${r.t}`);
   };
+  // とことん：もう読んだ巻のページを次々に出す・まちがいで🎫を使う・続きから・降りると自己ベスト（2026-11-05 satou さん「一日で遊べる量が少なすぎる」）
+  {
+    const el = await q.evaluate(() => {
+      const bad = [], sets = [[BOOKS[0]], [BOOKS[1], BOOKS[4]], BOOKS.slice()], seen = new Set();
+      for (const bs of sets) for (let i = 0; i < 300; i++) {
+        const L = endlessList(bs), ids = L.map((p) => p.id), firstBoss = L.findIndex((p) => p === bossOf(p.book));
+        if (L.length !== bs.length * 10 || new Set(ids).size !== L.length) bad.push("重なり");
+        if (!L.every((p) => bs.includes(p.book))) bad.push("読んでいない巻");
+        if (firstBoss !== L.length - bs.length || !L.slice(firstBoss).every((p) => p === bossOf(p.book))) bad.push("大きな魔が先");
+        if (bs.length === 6) seen.add(ids.join());
+      }
+      return { bad: [...new Set(bad)], kinds: seen.size };
+    });
+    check("とことんの並び（900回）：読んだ巻のページだけが重ならずに出て、大きな魔は最後にまとめ、毎回ちがう順", el.bad.length === 0 && el.kinds > 250, JSON.stringify(el));
+    await q.evaluate(() => { localStorage.removeItem(KEY); mem = load(); shelf(); });
+    check("まだどの巻も読んでいないと、とことんは押せず、開き方を出す", await q.locator("#go-e").isDisabled() && (await q.textContent("#go-e")).includes("巻を1回読むと開く"));
+    await q.evaluate(() => { localStorage.setItem(KEY, JSON.stringify({ solved: { ken1: true, min2: true }, keep: 7 })); mem = load(); shelf(); });
+    check("本棚に「とことん」の大きなボタン", !(await q.locator("#go-e.btn.wide").isDisabled()) && (await q.textContent("#go-e")).includes("何ページ続けて直せる"));
+    if ((await q.evaluate(() => document.documentElement.scrollWidth)) > 320) wide2.push("本棚");
+    await measure("本棚（とことん）");
+    await q.click("#go-e");
+    const ePages = await q.evaluate(() => S.list.map((p) => p.book.id));
+    check("とことんは読んだ巻（憲法・民法）の20ページで、しおりに聞くは無い", ePages.length === 20 && ePages.every((b) => b === "ken" || b === "min") && (await q.locator("#shiori").count()) === 0, ePages.join(","));
+    check("とことんは何ページ目かと🎫3枚を出す", (await q.textContent(".head")).includes("1ページ目") && (await q.locator("#life .off").textContent()) === "" && await q.evaluate(() => mem.erun.life === 3));
+    await measure("とことんのページ");
+    if ((await q.evaluate(() => document.documentElement.scrollWidth)) > 320) wide2.push("とことんのページ");
+    await solveQ(); await q.click("#next"); await solveQ(); await q.click("#next");
+    const lie3 = await q.evaluate(() => S.list[S.i].lie);
+    await q.click(lie3 >= 0 ? `button.w:not([data-k="${lie3}"])` : `.w[data-k="0"]`);
+    const e3 = await q.evaluate(() => ({ life: mem.erun.life, n: mem.erun.n, i: mem.erun.i, solved: Object.keys(mem.solved).length, days: Object.keys(mem.days).length, kan: Object.keys(mem.kanpu).length, ach: Object.keys(mem.ach).length, ui: document.querySelector("#life").getAttribute("aria-label") }));
+    check("とことんはまちがい1回で🎫を1枚使い、封じ帳・その日の数・完封・実績には数えない", e3.life === 2 && e3.n === 2 && e3.i === 3 && e3.solved === 2 && e3.days === 0 && e3.kan === 0 && e3.ach === 0 && e3.ui.includes("2"), JSON.stringify(e3));
+    await q.reload();
+    check("とことんは途中で閉じても続きから（4ページ目・🎫2のまま。答えたページはもう一度出さない）", (await q.textContent("#go-e")).includes("4ページ目") && await q.evaluate(() => mem.erun.n === 2 && mem.erun.life === 2));
+    await q.click("#go-e");
+    check("続きからは4ページ目・🎫2枚で始まる", (await q.textContent(".head")).includes("4ページ目") && (await q.locator("#life .off").textContent()) === "🎫");
+    await q.click("#quit");
+    const r1 = { res: await q.textContent("#eres"), best: await q.textContent("#ebest"), m: await q.evaluate(() => ({ b: mem.ebest, run: mem.erun, days: Object.keys(mem.days).length, keep: mem.keep, st: JSON.parse(localStorage.getItem(KEY)).ebest })) };
+    check("降りると直したページ数と自己ベスト更新が出て、記録に残る（その日の数には入らず、ほかの入れ物も消さない）", r1.res.includes("2ページ") && r1.best.includes("自己ベスト更新") && r1.m.b === 2 && r1.m.st === 2 && r1.m.run === null && r1.m.days === 0 && r1.m.keep === 7, JSON.stringify(r1));
+    await measure("とことんの終わり");
+    if ((await q.evaluate(() => document.documentElement.scrollWidth)) > 320) wide2.push("とことんの終わり");
+    await q.click("#go-e"); await q.click("#quit");
+    check("ベストに届かないと、ベストと「あと何ページで更新」を出し、ベストは下げない", (await q.textContent("#ebest")).includes("あと3ページで更新") && await q.evaluate(() => mem.ebest === 2));
+    await q.click("#go-e");
+    let lastNote = "";
+    for (let k = 0; k < 3; k++) {
+      const lie = await q.evaluate(() => S.list[S.i].lie);
+      await q.click(lie >= 0 ? `button.w:not([data-k="${lie}"])` : `.w[data-k="0"]`);
+      lastNote = await q.textContent("#next");
+      if (k < 2) await q.click("#next");
+    }
+    check("🎫が0になると「結果を見る」になり、その回は終わる", lastNote.includes("結果を見る") && (await q.textContent("#res")).includes("🎫が無くなった"));
+    await q.click("#next");
+    check("🎫を使い切った回も結果が出て、ベストは下げない", (await q.locator("#efin").count()) === 1 && (await q.textContent("#eres")).includes("0ページ") && await q.evaluate(() => mem.ebest === 2 && mem.erun === null));
+    check("時計が同じでも、新しい回は前に終えた回と別の id になる（同じ id だと終えた回とみなされて消える）", await q.evaluate(() => { const now = Date.now; try { Date.now = () => 1; mem.erun = null; mem.edone = "1-3"; startEndless(); return mem.erun.id === "1-4" && !!document.getElementById("life"); } finally { Date.now = now; } }));
+    await q.click("#quit");
+    // 別のタブ：ベストは大きいほう。別のタブで終えた回を古いタブが書き戻さない。古い形の記録でも読める
+    const tab = await q.evaluate(() => {
+      const out = {};
+      const other = JSON.parse(localStorage.getItem(KEY)); other.ebest = 9; localStorage.setItem(KEY, JSON.stringify(other));
+      mem.ebest = 2; save(); out.best = JSON.parse(localStorage.getItem(KEY)).ebest;
+      const run = { id: "qa-run", list: ["ken1", "ken2"], i: 1, n: 1, life: 3 };
+      mem.erun = run; save();
+      const done = JSON.parse(localStorage.getItem(KEY)); done.erun = null; done.edone = "qa-run"; localStorage.setItem(KEY, JSON.stringify(done));
+      mem.erun = { ...run }; mem.edone = ""; save(); out.revived = JSON.parse(localStorage.getItem(KEY)).erun;
+      const ahead = JSON.parse(localStorage.getItem(KEY)); ahead.erun = { ...run, id: "qa-2", i: 2, n: 2 }; ahead.edone = "qa-run"; localStorage.setItem(KEY, JSON.stringify(ahead));
+      mem.erun = { ...run, id: "qa-2" }; save(); out.ahead = mem.erun.i;
+      localStorage.setItem(KEY, JSON.stringify({ solved: { ken1: true }, ebest: "x", erun: [1], edone: 5 })); const m = load(); out.old = [m.ebest, m.erun, m.edone, m.solved.ken1];
+      localStorage.setItem(KEY, JSON.stringify({ solved: { ken1: true }, erun: { id: "bad", list: ["nope"], i: 0, n: 0, life: 3 } })); mem = load(); shelf(); out.badRun = document.getElementById("go-e").textContent;
+      return out;
+    });
+    check("別のタブの自己ベストは大きいほうを残し、別のタブで終えた回は書き戻さず、進んだ回は進んだほうを使う", tab.best === 9 && tab.revived === null && tab.ahead === 2, JSON.stringify(tab));
+    check("古い形・壊れたとことんの記録でも、足りない入れ物を補って本棚が出る", JSON.stringify(tab.old) === '[0,null,"",true]' && tab.badRun.includes("何ページ続けて直せる"), JSON.stringify(tab));
+    // 巻の終わりの画面に「続けて遊ぶ：とことん」
+    await q.click('.spine[data-book="ken"]'); await runQ();
+    check("巻の終わりの画面に「続けて遊ぶ：とことん」の大きなボタン", (await q.locator("#fin #go-e.btn.wide").count()) === 1 && (await q.textContent("#fin #go-e")).includes("続けて遊ぶ：とことん"));
+    await q.click("#fin #go-e");
+    check("巻の終わりから、とことんを始められる", (await q.locator("#life").count()) === 1);
+    await q.click("#quit"); await q.click("#back");
+    check("とことんの画面（本棚・ページ・終わり）が幅320pxで横にはみ出さない", wide2.length === 0, wide2.join(","));
+  }
+
+
   await q.evaluate(() => { mem.days = {}; shelf(); }); await measure("本棚");
   await q.click("#achbtn"); await measure("実績"); await q.click("#back");
   await q.click("#calbtn"); await measure("カレンダー"); await q.click("#back");
   await q.click('.spine[data-book="sho"]'); await measure("ページ");
   const lie0 = await q.evaluate(() => S.list[S.i].lie);
   if (lie0 >= 0) { await q.click(`.w[data-k="${lie0}"]`); await measure("札"); }
-  check("押せる所（本棚・実績・カレンダー・ページの言葉・札）は高さ44px以上（幅320px）", small.length === 0, small.join(" / "));
+  check("押せる所（本棚・実績・カレンダー・ページの言葉・札・とことん）は高さ44px以上（幅320px）", small.length === 0, small.join(" / "));
   check("キーで選ぶと、どのボタンにも2px以上の枠が出る", noRing.length === 0, noRing.join(" / "));
   check("やりこみの確かめでページのエラーが無い", errQ.length === 0, errQ.join(" / "));
   await q.close();
 
   const src = readFileSync(path.join(root, "index.html"), "utf8");
-  check("Math.random は札・ページの並びと大技の名前の2か所だけ（増やさない）", (src.match(/Math\.random/g) || []).length === 2);
+  check("Math.random は札・ページの並び（練習・とことんも同じ shuffle）と大技の名前の2か所だけ（増やさない）", (src.match(/Math\.random/g) || []).length === 2);
   check("sort の比較の中で乱数を引かない", !/sort\([^)]*(random|r\(\))/.test(src));
 
   // 12. PWA：ホーム画面に置ける形（manifest・アイコン）と、一度開けば電波が無くても遊べる（sw.js）。http で開いて確かめる
