@@ -71,18 +71,28 @@ export async function checkTransfer({ browser, url, game, sample, check, open })
   // 知らせは消えずに「控えに戻す」を出す（取り込んだ記録でゲームの画面が出なくても戻せるように。版4）
   const tu = await pb.$$eval("#hk-toast-undo, #hk-toast-close", (bs) => bs.map((b) => b.getBoundingClientRect().height));
   check("引き継ぎ：取り込んだ知らせに「控えに戻す」「閉じる」があり、44px以上", tu.length === 2 && tu.every((h) => h >= 44), JSON.stringify(tu));
-  await pb.click("#hk-toast-close");
-  check("引き継ぎ：知らせは「閉じる」で消える", (await pb.locator(".hk-toast").count()) === 0);
   const bak = await pb.evaluate((g) => JSON.parse(localStorage.getItem("hk-backup:" + g) || "null"), game);
   check("引き継ぎ：前の記録を控えに残す", bak && JSON.stringify(Object.fromEntries(Object.entries(bak.d).sort())) === JSON.stringify(had));
 
-  // 3. 控えに戻す・もう一度押すとまた入れ替わる
+  // 3. 知らせの「控えに戻す」で前の記録に戻る（版5）→ 箱の「控えに戻す」をもう一度押すとまた入れ替わる
+  await pb.click("#hk-toast-undo");
+  await Promise.all([pb.waitForEvent("load"), pb.click("#hk-yes")]);
+  await pb.waitForTimeout(300);
+  const back1 = await dump(pb);
+  check("引き継ぎ：知らせの「控えに戻す」で前の記録に戻せる", JSON.stringify(back1) === JSON.stringify(had), JSON.stringify(back1).slice(0, 80));
   await openBox(pb);
   await pb.click("#hk-undo");
   await Promise.all([pb.waitForEvent("load"), pb.click("#hk-yes")]);
   await pb.waitForTimeout(300);
-  const back1 = await dump(pb);
-  check("引き継ぎ：控えに戻せる", JSON.stringify(back1) === JSON.stringify(had), JSON.stringify(back1).slice(0, 80));
+  check("引き継ぎ：もう一度「控えに戻す」を押すと、取り込んだ記録にまた入れ替わる", JSON.stringify(await dump(pb)) === want);
+  // 知らせは「閉じる」で消える（もう一度同じコードを取り込んで確かめる）
+  await pb.goto("about:blank");
+  await pb.goto(url + "#hk=" + code);
+  await pb.waitForSelector("#hk-yes");
+  await Promise.all([pb.waitForEvent("load"), pb.click("#hk-yes")]);
+  await pb.waitForTimeout(300);
+  await pb.click("#hk-toast-close");
+  check("引き継ぎ：知らせは「閉じる」で消える", (await pb.locator(".hk-toast").count()) === 0);
 
   // 4. 弾くコード（貼り付けで）
   const bad = [

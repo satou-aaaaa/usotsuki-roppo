@@ -1,5 +1,5 @@
 // 引き継ぎコード（transfer.js）：このゲームの記録を「コード」と「QR」にして、別の端末へ移す。サーバーは使わない。
-// 引き継ぎの版: 4
+// 引き継ぎの版: 5
 // 正：satou-aaaaa/shared-workflows の template/transfer.js（各ゲームはこれをそのまま写す。直すときはひな形を直して配り、版を上げる）
 // 使い方（index.html の <head> の中、ゲームの script より前に、defer を付けずに置く）:
 //   <script src="transfer.js" data-game="kippu-10" data-keys="kippu-v1"></script>
@@ -17,7 +17,7 @@
 //   - 外へ通信しない（fetch・XMLHttpRequest・外のスクリプトを使わない）。QR は下の qrcode-generator（MIT）をこのファイルの中で作る。
 (function () {
   "use strict";
-  var VERSION = 4;
+  var VERSION = 4; // コードの形の版（形を変えたときだけ上げる。上の「引き継ぎの版」とは別）
   var me = document.currentScript;
   var cfg = window.HK_CONFIG || {};
   var GAME = cfg.game || (me && me.dataset.game) || "";
@@ -212,16 +212,25 @@
       if (!count(d) && count(job.d || {})) throw new Error("data-keys の外のキーだけ");
       job.d = d;
       var cur = snapshot();
-      // 先にいまの記録を控えに残す（空なら控えは作らない。前の控えも消さない）。控えを書けなければ入れ替えない
-      var prev = localStorage.getItem(BACKUP);
-      if (count(cur)) localStorage.setItem(BACKUP, JSON.stringify({ at: new Date().toISOString(), d: cur }));
-      try { replaceAll(job.d); } catch (e) {
-        // 元に戻せなかったときは、いまの記録の控えを消さない（それが前の記録のただ1つの写し）
-        if (e.rolledBack === false) { partial = true; throw e; }
-        try { if (prev == null) localStorage.removeItem(BACKUP); else localStorage.setItem(BACKUP, prev); } catch (e2) { /* なし */ }
-        throw e;
+      if (job.undo) {
+        // 控えに戻す：控え（job.d と同じ中身）は入れ替えが済むまで上書きしない。途中で止まっても、もう一度「控えに戻す」で戻せる（版5）
+        try { replaceAll(job.d); } catch (e) { partial = e.rolledBack === false; throw e; }
+        // 済んだら、戻す前の記録を控えにする（もう一度押すと戻る）。控えを書けなければ、戻す前の記録の写しが無くなるので入れ替えを戻す
+        try { if (count(cur)) localStorage.setItem(BACKUP, JSON.stringify({ at: new Date().toISOString(), d: cur })); else localStorage.removeItem(BACKUP); } catch (e) {
+          try { replaceAll(cur); } catch (e2) { partial = true; throw e2; }
+          throw e;
+        }
+      } else {
+        // 先にいまの記録を控えに残す（空なら控えは作らない。前の控えも消さない）。控えを書けなければ入れ替えない
+        var prev = localStorage.getItem(BACKUP);
+        if (count(cur)) localStorage.setItem(BACKUP, JSON.stringify({ at: new Date().toISOString(), d: cur }));
+        try { replaceAll(job.d); } catch (e) {
+          // 元に戻せなかったときは、いまの記録の控えを消さない（それが前の記録のただ1つの写し）
+          if (e.rolledBack === false) { partial = true; throw e; }
+          try { if (prev == null) localStorage.removeItem(BACKUP); else localStorage.setItem(BACKUP, prev); } catch (e2) { /* なし */ }
+          throw e;
+        }
       }
-      if (!count(cur) && job.undo) { try { localStorage.removeItem(BACKUP); } catch (e) { /* なし */ } }
       msg = job.undo ? "取り込む前の記録に戻しました" : "記録を引き継ぎました";
       undo = !job.undo && count(cur) > 0;
     } catch (e) {
