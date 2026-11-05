@@ -1,5 +1,5 @@
 // 引き継ぎコード（transfer.js）：このゲームの記録を「コード」と「QR」にして、別の端末へ移す。サーバーは使わない。
-// 引き継ぎの版: 5
+// 引き継ぎの版: 6
 // 正：satou-aaaaa/shared-workflows の template/transfer.js（各ゲームはこれをそのまま写す。直すときはひな形を直して配り、版を上げる）
 // 使い方（index.html の <head> の中、ゲームの script より前に、defer を付けずに置く）:
 //   <script src="transfer.js" data-game="kippu-10" data-keys="kippu-v1"></script>
@@ -115,8 +115,23 @@
     var s = String(text || "");
     // URL の途中で改行されていても（改行のあとの字下げも）、コードに使う文字が続くあいだは1つのコードとして取る
     var m = s.match(/[#&]hk=([A-Za-z0-9_.%-]+(?:[ \t]*[\r\n]+[ \t]*[A-Za-z0-9_.%-]+)*)/);
-    if (m) { try { s = decodeURIComponent(m[1]); } catch (e) { s = m[1]; } }
-    return s.replace(/\s+/g, "");
+    var src = m ? m[1] : s;
+    var un = function (x) { if (!m) return x; try { return decodeURIComponent(x); } catch (e) { return x; } };
+    // 行をつなぐと、コードのあとの行（「  Note: keep」など）の字まで入ることがある。
+    // 長いほうから順に、終わりの3行までを外して CRC が合うところを使う（合わなければ全部つないで、写しまちがいとして知らせる。
+    // 外すのを3行までにするのは、とても長いコードで CRC を何度も計り直さないため。版6）
+    var lines = src.split(/[\r\n]+/);
+    for (var k = lines.length; k >= 1 && k >= lines.length - 3; k--) {
+      var c = un(lines.slice(0, k).join("")).replace(/\s+/g, "");
+      if (whole(c)) return c;
+    }
+    return un(src).replace(/\s+/g, "");
+  }
+  // 形と CRC が合う、ひとそろいのコードか
+  function whole(c) {
+    var m = c.match(/^HK([01])\.([A-Za-z0-9_-]+)\.([0-9a-z]{1,7})$/);
+    if (!m) return false;
+    try { return crc32(unb64(m[2])) === m[3]; } catch (e) { return false; }
   }
   var ERR = {
     form: "コードの形がちがいます。最後まで写せているか確かめてください。",
@@ -268,7 +283,7 @@
     ".hk-toast button{min-height:44px;min-width:44px;padding:8px 14px;border-radius:10px;border:1px solid #888;background:transparent;color:#fff;font:inherit;cursor:pointer}",
     ".hk-toast button:focus-visible{outline:3px solid #5b9cff;outline-offset:2px}",
   ].join("\n");
-  var back = null, lastFocus = null, req = 0;
+  var back = null, lastFocus = null, req = 0, onClosed = null;
   function el(tag, attrs, kids) {
     var e = document.createElement(tag);
     Object.keys(attrs || {}).forEach(function (k) { if (k === "text") e.textContent = attrs[k]; else e.setAttribute(k, attrs[k]); });
@@ -289,7 +304,8 @@
     var b = withUndo ? readBackup() : null;
     if (b) {
       t.appendChild(el("div", { class: "hk-row" }, [
-        btn("控えに戻す", function () { gone(); confirmUndo(b); }, false, "hk-toast-undo"),
+        // やめたら知らせを出し直す（ゲームの画面が出ず data-hk も無いと、ほかに戻す入口が無い。版6）
+        btn("控えに戻す", function () { gone(); confirmUndo(b, function () { toast(text, true); }); }, false, "hk-toast-undo"),
         btn("閉じる", gone, false, "hk-toast-close"),
       ]));
     } else setTimeout(gone, 4000);
@@ -300,6 +316,8 @@
     if (!back) return;
     back.parentNode.removeChild(back);
     back = null;
+    var after = onClosed; onClosed = null; // 箱を閉じたあとにすること（知らせの出し直しなど）
+    if (after) after();
     document.removeEventListener("keydown", onKey, true);
     if (lastFocus && lastFocus.focus) lastFocus.focus();
   }
@@ -316,6 +334,7 @@
   // 箱を開いて中身を入れかえる
   function show(kids, focusSel) {
     req++; // 画面を替えたら、読み取り中のコードの結果は出さない
+    onClosed = null;
     style();
     if (!back) {
       lastFocus = document.activeElement;
@@ -385,6 +404,8 @@
     var d = snapshot();
     var err = el("p", { class: "hk-err", role: "alert", hidden: "" });
     var paste = el("textarea", { id: "hk-in", "aria-label": "引き継ぎコードを貼る", placeholder: "ここに引き継ぎコードを貼る", autocomplete: "off", spellcheck: "false" });
+    // 貼る欄に書いたら、読み取り中のファイルの中身で上書きしない（版6）
+    paste.addEventListener("input", function () { req++; });
     var fileIn = el("input", { type: "file", accept: ".txt,text/plain" });
     fileIn.addEventListener("change", function () {
       // 選び直したら、どの道でも先に番号を進める（前のファイルの読み取り結果で、いまのエラーを隠さない）
@@ -443,7 +464,7 @@
       ]),
     ], "#hk-no");
   }
-  function confirmUndo(b) {
+  function confirmUndo(b, onCancel) {
     var err = el("p", { class: "hk-err", role: "alert", hidden: "" });
     show([
       el("h2", { id: "hk-title", text: "控えに戻しますか？" }),
@@ -451,6 +472,7 @@
       err,
       el("div", { class: "hk-row" }, [btn("戻す", function () { if (!commit(b.d, true)) { err.textContent = "戻せませんでした（ブラウザの設定で保存が止められているかもしれません）。"; err.hidden = false; } }, true, "hk-yes"), btn("やめる", close, false, "hk-no")]),
     ], "#hk-no");
+    onClosed = onCancel || null; // やめる・Esc・外を押す、のどれで閉じても
   }
 
   function boot() {
