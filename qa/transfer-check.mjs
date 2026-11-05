@@ -74,7 +74,11 @@ export async function checkTransfer({ browser, url, game, sample, check, open })
   const bak = await pb.evaluate((g) => JSON.parse(localStorage.getItem("hk-backup:" + g) || "null"), game);
   check("引き継ぎ：前の記録を控えに残す", bak && JSON.stringify(Object.fromEntries(Object.entries(bak.d).sort())) === JSON.stringify(had));
 
-  // 3. 知らせの「控えに戻す」で前の記録に戻る（版5）→ 箱の「控えに戻す」をもう一度押すとまた入れ替わる
+  // 3. 知らせの「控えに戻す」→「やめる」で知らせが出直す（ほかに入口が無くても戻せる。版6）
+  await pb.click("#hk-toast-undo");
+  await pb.click("#hk-no");
+  check("引き継ぎ：知らせの「控えに戻す」をやめると、知らせが出直す", (await pb.locator("#hk-toast-undo").count()) === 1);
+  // 知らせの「控えに戻す」で前の記録に戻る（版5）→ 箱の「控えに戻す」をもう一度押すとまた入れ替わる
   await pb.click("#hk-toast-undo");
   await Promise.all([pb.waitForEvent("load"), pb.click("#hk-yes")]);
   await pb.waitForTimeout(300);
