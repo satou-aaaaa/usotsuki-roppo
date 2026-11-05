@@ -18,7 +18,7 @@
 /* 夜の書庫：本棚で巻を選ぶ → 1ページに条文1つ。うその言葉をタップ → 札で正しい言葉をはめ、ねじれ文字を封じる */
 :root{
   --sky1:#0d1030; --sky2:#232a5c; --sky3:#3b3570;
-  --page:#f6efdd; --page2:#ecdfbf; --ink:#2a2420; --muted:#7a6f63; --line:#d9cdb3;
+  --page:#f6efdd; --page2:#ecdfbf; --ink:#2a2420; --muted:#635a4f; --line:#d9cdb3;
   --gold:#e7b04f; --lamp:#ffcf73; --lie:#b0352b; --fix:#2f6e4f; --card:#fffaf0; --fuda:#f3e6c4; --seal:#b3261e;
   --text:#efe8d8;
   --display:"Kaisei Decol","Hiragino Mincho ProN","Yu Mincho",serif;
@@ -38,9 +38,9 @@ body{margin:0;min-height:100vh;color:var(--text);font-family:var(--body);font-si
     radial-gradient(1.5px 1.5px at 90% 30%,#fff6 50%,transparent 51%),
     radial-gradient(1px 1px at 44% 36%,#fff6 50%,transparent 51%),
     radial-gradient(1px 1px at 6% 44%,#fff7 50%,transparent 51%),
-    linear-gradient(180deg,var(--sky1) 0%,var(--sky2) 60%,var(--sky3) 100%);
+    linear-gradient(180deg,var(--sky1) 0%,var(--sky2) 60%,var(--sky3) 100%) var(--sky1);
   background-attachment:fixed}
-body.dawn{--sky1:#2b2a5e;--sky2:#b0628a;--sky3:#f4b26b}
+body.dawn{--sky1:#2b2a5e;--sky2:#66356a;--sky3:#8c3a2e} /* 夜明けの空：上に白い字・灯りの字が乗るので、濃いめの朝焼け（字のコントラスト 4.5:1 以上） */
 .moon{position:fixed;top:22px;right:max(22px,8vw);width:54px;height:54px;border-radius:50%;
   background:radial-gradient(circle at 35% 35%,#fff7dc,#f1d98f 60%,#d9b862);box-shadow:0 0 40px 10px #f6d77a33;pointer-events:none}
 body.dawn .moon{background:radial-gradient(circle at 50% 50%,#fff3c4,#ffc35a 70%);box-shadow:0 0 70px 30px #ffbe5a55;top:auto;bottom:120px}
@@ -73,7 +73,7 @@ button{font:inherit}
 .spine .n{font-size:11px;font-variant-numeric:tabular-nums;opacity:.9}
 .spine.done{box-shadow:0 0 0 2px var(--lamp),0 0 22px 4px #ffcf7355}
 .spine.done::after{content:"✦";position:absolute;top:-16px;color:var(--lamp);font-size:14px;text-shadow:0 0 8px var(--lamp)}
-.hint{font-size:12px;opacity:.75;margin:0;text-align:center}
+.hint{font-size:12px;opacity:.85;margin:0;text-align:center}
 .row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
 /* 本のページ */
 .stage{perspective:1400px}
@@ -88,15 +88,17 @@ button{font:inherit}
 .head{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);gap:8px;flex-wrap:wrap}
 .art{font-family:var(--display);font-size:16px;color:#6a4a2a}
 .chip{font-size:12px;background:#2a2042;color:#e8dbff;border-radius:999px;padding:1px 10px}
-.streak{font-size:12px;color:#a8541a;font-weight:700;margin:0}
+.streak{font-size:12px;color:#8f4512;font-weight:700;margin:0}
 .text{font-family:var(--display);font-size:20px;line-height:2.15;letter-spacing:.02em}
 .w{all:unset;cursor:pointer;border-bottom:2px dotted #b9a983;padding:0 1px;border-radius:3px;display:inline-block;min-height:44px;box-sizing:border-box;vertical-align:bottom}
 .w:hover{background:#efe2bf}
 .w.lie{color:var(--lie);display:inline-block;animation:twist 1.4s ease-in-out infinite;border-bottom:none;text-decoration:line-through wavy;text-decoration-thickness:1.5px}
 @keyframes twist{0%,100%{transform:skewX(0) rotate(0)}25%{transform:skewX(-14deg) rotate(-2deg)}75%{transform:skewX(12deg) rotate(2deg)}}
 .w.fixed{color:var(--fix);border-bottom:2px solid var(--fix);animation:glow 1.2s ease}
+.w.fixed::after{content:"✓";font-size:.6em;vertical-align:super;margin-left:1px}
 .w.ans{color:var(--fix);border-bottom:2px solid var(--fix)}
-.w.miss{background:#f3d3cc}
+.w.miss{background:#f3d3cc;outline:2px dashed var(--lie);outline-offset:-2px}
+.w.miss::before{content:"✕";color:var(--lie);font-size:.6em;vertical-align:super;margin-right:1px}
 @keyframes glow{from{background:#fff1b8;box-shadow:0 0 18px #ffd86a}to{background:transparent}}
 .text.done .w{cursor:default}
 .q{font-size:13px;color:var(--muted);margin:0}
@@ -108,7 +110,8 @@ button{font:inherit}
 .none,.shiori{all:unset;cursor:pointer;font-size:13px;padding:6px 14px;min-height:44px;box-sizing:border-box;display:inline-flex;align-items:center;border-radius:999px;border:1px solid #b9a983;color:var(--ink)}
 .tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .shiori{border-color:#c58a1c;color:#8a5a12;background:#fff4d6}
-.w.okw{color:#9a8f80;border-bottom:2px solid #9fc4ab;cursor:default;background:#e7f0e3}
+.w.okw{color:#4d5a4f;border-bottom:2px solid #9fc4ab;cursor:default;background:#e7f0e3}
+.w.okw::before{content:"✓";color:var(--fix);font-size:.6em;vertical-align:super;margin-right:1px}
 .res{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:center;background:#efe6cf;border-radius:10px;padding:10px 12px}
 .res p{margin:0;font-size:14px}
 .res b{font-size:16px;font-family:var(--display)}
@@ -149,14 +152,14 @@ button{font:inherit}
 .mons{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px}
 .slot{background:#ffffff0d;border:1px solid #ffffff1f;border-radius:10px;padding:8px 4px;display:grid;justify-items:center;gap:2px;text-align:center;font-size:11px;min-width:0}
 .slot .nm{font-family:var(--display);font-size:13px;color:#ffd9d2;text-decoration:line-through wavy #ff8a80;overflow-wrap:anywhere}
-.slot.out{opacity:.45}
+.slot.out{border-style:dashed}.slot.out .mon{opacity:.45}
 .slot .q2{font-family:var(--display);font-size:28px;opacity:.4;height:52px;display:grid;place-items:center}
 .cho h3{font-family:var(--display);font-size:16px;margin:6px 0 0;color:var(--lamp)}
 /* 村 */
 .town{width:100%;height:auto;display:block;margin-top:6px}
 .town .win{fill:#2a2a3a}
 .town .win.lit{fill:var(--lamp);filter:drop-shadow(0 0 4px #ffcf73)}
-footer{display:grid;gap:6px;font-size:12px;opacity:.8}
+footer{display:grid;gap:6px;font-size:12px;opacity:.9}
 footer p{margin:0}
 footer a{color:var(--lamp)}
 .ask{font-size:13px;opacity:.85;border-top:1px dashed #ffffff22;padding-top:10px}
@@ -172,7 +175,7 @@ footer a{color:var(--lamp)}
 .ach b{font-family:var(--display);font-size:15px;color:var(--lamp);display:block}
 .ach small{font-size:12px;opacity:.85;display:block;overflow-wrap:anywhere}
 .ach .pr{font-size:12px;font-variant-numeric:tabular-nums;opacity:.9;white-space:nowrap}
-.ach.no{opacity:.6}.ach.no .ic{filter:grayscale(1)}
+.ach.no{border-style:dashed}.ach.no .ic{filter:grayscale(1);opacity:.6}
 .ach.got{border-color:#e7b04f88;background:#e7b04f14}
 .calhead{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .calhead b{font-family:var(--display);font-size:18px;color:var(--lamp)}
@@ -180,23 +183,179 @@ footer a{color:var(--lamp)}
 .calhead .btn[disabled]{opacity:.35;cursor:default}
 .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;font-size:12px}
 .cal .dw{opacity:.7}
-.cal .d{aspect-ratio:1;border-radius:8px;display:grid;place-items:center;background:#ffffff08;font-variant-numeric:tabular-nums;min-width:0}
-.cal .d.l1{background:#e7b04f5c}.cal .d.l2{background:#e7b04f90;color:#2a1d08}.cal .d.l3{background:var(--lamp);color:#2a1d08;font-weight:700}
+.cal .d{aspect-ratio:1;border-radius:8px;display:grid;place-items:center;align-content:center;line-height:1.2;background:#ffffff08;font-variant-numeric:tabular-nums;min-width:0}
+.cal .d.l1{background:#e7b04f5c}.cal .d.l2{background:#e7b04fb8;color:#2a1d08}.cal .d.l3{background:var(--lamp);color:#2a1d08;font-weight:700}
 .cal .d.today{box-shadow:inset 0 0 0 2px #fff}
-.cal .d.fut{opacity:.35}
+/* 灯りの段は色の濃さだけでなく点の数でも分ける（1段 •・2段 ••・3段 •••） */
+.cal .d.l1::after,.cal .d.l2::after,.cal .d.l3::after,.keys i::after{font-size:9px;line-height:1;letter-spacing:-1px}
+.cal .d.l1::after,.keys i.k1::after{content:"•"}.cal .d.l2::after,.keys i.k2::after{content:"••"}.cal .d.l3::after,.keys i.k3::after{content:"•••"}
+.cal .d.fut{opacity:.75;background:transparent}
 .calnote{font-size:12px;opacity:.85}
 .keys{display:flex;gap:10px;align-items:center;font-size:12px;opacity:.85;flex-wrap:wrap}
-.keys i{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:3px}
+.keys i{display:inline-block;min-width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:3px;font-style:normal;color:#2a1d08;text-align:center;line-height:14px;padding:0 1px}
 .spine .first{position:absolute;top:-30px;white-space:nowrap;font-size:11px;font-weight:700;background:var(--lamp);color:#2a1d08;border-radius:999px;padding:0 8px;box-shadow:0 2px 6px #0007}
 .mode{display:grid;justify-items:center;gap:4px}
 .mode .btn{min-height:44px;box-sizing:border-box;display:inline-flex;align-items:center}
 .peek-tag{margin:0;font-size:13px;font-weight:700;color:var(--fix)}
 .text.clean .w{border-bottom-color:transparent;cursor:default}
+/* 色の見分けを助ける（html.a11y-cvd）：うそ＝朱・直した/正しい＝青の組（カラーユニバーサルデザイン）に替え、印を太くする */
+html.a11y-cvd{--lie:#A63D00;--fix:#005A8C}
+html.a11y-cvd .w.fixed,html.a11y-cvd .w.ans{border-bottom-width:3px}
+html.a11y-cvd .w.miss{background:#ffe2c2;outline-width:3px}
+html.a11y-cvd .w.okw{background:#dcebf7;border-bottom-color:#0072B2}
+html.a11y-cvd .w.lie{text-decoration-thickness:2.5px}
+html.a11y-cvd .slot.out{border-width:2px}
+/* 読み上げソフトだけに届く知らせ（#live） */
+.sr{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 [hidden]{display:none!important}
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 /* all:unset のボタンでも、キーで選んだときの枠を必ず出す（いちばん最後に強く書く） */
 :is(.btn,.w,.card,.spine,.none,.shiori,button,a):focus-visible{outline:3px solid #fff!important;outline-offset:3px}
 </style>
+<!-- a11y:begin 見やすさの設定 v4（shared-workflows template/a11y/a11y.html の写し。ここでは直さず、ひな形を直して全部のゲームへ写す。drift-check と qa/a11y.mjs が同じ中身か見る） -->
+<style id="a11y-css">
+/* だれでも：キーボードで選んだ所に太い枠（WCAG 2.4.7・2.4.13） */
+:is(button,a,input,select,textarea,summary,[tabindex]):focus-visible{outline:3px solid #1a5fd0!important;outline-offset:2px!important;box-shadow:0 0 0 5px #fff!important}
+/* 読みやすい文字：UD フォント・行間 1.7・字間を少し広げる・斜体にしない（BDA Dyslexia Style Guide） */
+html.a11y-read body{line-height:1.7}
+html.a11y-read body,html.a11y-read body :where(*:not(svg):not(svg *):not([data-a11y-keepfont]):not([data-a11y-keepfont] *)){font-family:"BIZ UDPGothic","BIZ UDGothic","UD デジタル 教科書体 NK-R","UD Digi Kyokasho NK-R","Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI",Meiryo,sans-serif!important;font-style:normal!important}
+html.a11y-read :is(p,li,dd,dt,blockquote,[data-a11y-say]){line-height:1.8!important;letter-spacing:.04em!important}
+html.a11y-read em,html.a11y-read i:not([aria-hidden]){font-style:normal!important;font-weight:700}
+/* 動きを減らす：揺れ・点滅・すべる動きを止める（WCAG 2.3.3。端末の「視差効果を減らす」でも自動で入る） */
+html.a11y-calm *,html.a11y-calm *::before,html.a11y-calm *::after{animation-duration:.001ms!important;animation-delay:0s!important;animation-iteration-count:1!important;transition-duration:.001ms!important;transition-delay:0s!important;scroll-behavior:auto!important}
+/* 色の見分けを助ける：ゲームごとの形・模様は各ゲームが html.a11y-cvd の下に書く。ここではリンクに下線 */
+html.a11y-cvd a{text-decoration:underline!important}
+/* ふりがな：ゲームが <ruby class="a11y-rb"> を置いた所だけ。選んだときだけ出す */
+html:not(.a11y-ruby) ruby.a11y-rb>rt{display:none}
+/* 設定の画面（どのゲームでも同じ見た目・同じ濃さ。白地に黒で 15:1） */
+.a11y-dlg{max-width:min(420px,calc(100vw - 32px));width:100%;box-sizing:border-box;border:2px solid #1d2320;border-radius:14px;padding:18px 16px 14px;background:#fffdf8;color:#1d2320;font:500 16px/1.6 "BIZ UDPGothic","Hiragino Sans","Yu Gothic UI",Meiryo,sans-serif;letter-spacing:0}
+.a11y-dlg::backdrop{background:#0008}
+.a11y-dlg h2{font-size:19px;margin:0 0 4px;font-weight:700;line-height:1.4}
+.a11y-dlg p{margin:4px 0 10px;font-size:14px;color:#3d4440;line-height:1.6}
+.a11y-dlg label{display:flex;gap:12px;align-items:center;min-height:48px;padding:6px 4px;border-top:1px solid #1d232022;cursor:pointer;line-height:1.4}
+.a11y-dlg label small{display:block;font-size:13px;color:#3d4440}
+.a11y-dlg input[type=checkbox]{width:26px;height:26px;flex:none;accent-color:#1a5fd0;margin:0}
+.a11y-dlg .a11y-row{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+.a11y-dlg button,.a11y-btn,.a11y-saybtn{min-height:44px;min-width:44px;border-radius:10px;border:2px solid #1d2320;background:#fff;color:#1d2320;font:700 15px/1.2 "BIZ UDPGothic","Hiragino Sans","Yu Gothic UI",Meiryo,sans-serif;padding:0 14px;cursor:pointer;letter-spacing:0}
+.a11y-dlg button.a11y-ok{background:#1d2320;color:#fff}
+.a11y-btn.a11y-float{position:fixed;left:max(8px,env(safe-area-inset-left,0px));bottom:max(8px,env(safe-area-inset-bottom,0px));z-index:2147483000}
+/* 読み上げボタンが、いちばん下のボタン・リンクにかぶらないよう下をあける */
+html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!important}
+.a11y-saybtn{position:fixed;right:max(8px,env(safe-area-inset-right,0px));bottom:max(8px,env(safe-area-inset-bottom,0px));z-index:2147483000;box-shadow:0 2px 8px #0003}
+.a11y-saybtn[hidden],.a11y-dlg [hidden]{display:none!important}
+.a11y-note{font-size:13px!important}
+</style>
+<script id="a11y-script">
+/* 見やすさの設定（色覚・ディスレクシア・弱視・動きに弱い人のため）。外へは何も送らない。
+   設定は localStorage の a11y-v1 に置く。同じサイト（satou-aaaaa.github.io）のゲームは同じ設定を使う。
+   ゲームの側でできること：
+   - 設定を開くボタンに data-a11y-open を付ける（無ければ左下に「Aa」のボタンを出す）
+   - 読み上げる文に data-a11y-say を付ける（問題文・知らせなど）
+   - 色の見分けを助ける形・模様は html.a11y-cvd の下に CSS で書く。JS では A11y.on('cvd')
+   - 揺れ・すべる動きを JS で動かすときは、A11y.on('calm') なら止める
+   - 設定が変わると document に a11ychange が届く
+   - 設定の印は html の class「a11y-<設定の名前>」（a11y-read など）。部品の class はこれと重ならない名前にする（2026-11-05 a11y-say がボタンとぶつかった） */
+(() => {
+  const KEY = "a11y-v1";
+  const root = document.documentElement;
+  const OPTS = [
+    ["read", "読みやすい文字", "UD フォント・行間と字間を広く"],
+    ["cvd", "色の見分けを助ける", "色に形・模様・記号を足す"],
+    ["calm", "動きを減らす", "揺れ・点滅・すべる動きを止める"],
+    ["say", "読み上げのボタンを出す", "問題や知らせを声で読む（端末の中の声だけ）"],
+    ["ruby", "ふりがなを出す", "むずかしい漢字に読みを付ける"],
+  ];
+  const media = (q) => { try { return matchMedia(q).matches; } catch { return false; } };
+  let S = {};
+  try { S = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch { S = {}; }
+  // 決めていないものは端末の設定に合わせる（視差効果を減らす → 動きを減らす）
+  const on = (k) => (k in S ? !!S[k] : k === "calm" ? media("(prefers-reduced-motion: reduce)") : false);
+  let fontLoaded = false;
+  const loadFont = () => {
+    if (fontLoaded) return; fontLoaded = true;
+    // Google Fonts を許しているページだけ取りに行く（許していなければ端末にある UD フォントを使う）
+    const csp = (document.querySelector('meta[http-equiv="Content-Security-Policy"]') || {}).content || "";
+    if (csp && !/fonts\.googleapis\.com/.test(csp)) return;
+    const l = document.createElement("link");
+    l.rel = "stylesheet"; l.href = "https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap";
+    document.head.appendChild(l);
+  };
+  const apply = () => {
+    for (const [k] of OPTS) root.classList.toggle("a11y-" + k, on(k));
+    if (on("read")) loadFont();
+    if (sayBtn) sayBtn.hidden = !on("say");
+    if (!on("say")) stop();
+  };
+  const set = (k, v) => {
+    S[k] = !!v;
+    try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* 保存できなくても今の画面には効かせる */ }
+    apply();
+    document.dispatchEvent(new CustomEvent("a11ychange", { detail: { key: k, on: !!v } }));
+  };
+
+  // 読み上げ：端末の中の日本語の声だけを使う（外へ文字を送る声は使わない）
+  const voice = () => { try { return speechSynthesis.getVoices().find((v) => /^ja/i.test(v.lang) && v.localService) || null; } catch { return null; } };
+  const stop = () => { try { speechSynthesis.cancel(); } catch { /* 無い端末 */ } };
+  const visible = (el) => { const r = el.getBoundingClientRect(); const cs = getComputedStyle(el); return r.width > 0 && r.height > 0 && cs.visibility !== "hidden" && !el.closest("[hidden],[aria-hidden=true],[inert]"); };
+  const textOf = (sel) => [...document.querySelectorAll(sel)].filter(visible).map((el) => (el.getAttribute("aria-label") || el.innerText || "").trim()).filter(Boolean).join("。");
+  // data-a11y-say が無い画面では、見出しと知らせの場所を読む（2026-11-05 何も読まれず設定が開くだけだった）
+  const sayText = () => textOf("[data-a11y-say]") || textOf("h1,h2,[role=status],[aria-live]");
+  const say = (text) => {
+    const v = voice();
+    if (!v || !text) return false;
+    stop();
+    const u = new SpeechSynthesisUtterance(text.slice(0, 600));
+    u.voice = v; u.lang = v.lang; u.rate = 0.95;
+    speechSynthesis.speak(u);
+    return true;
+  };
+
+  let dlg = null, sayBtn = null, lastFocus = null;
+  const build = () => {
+    dlg = document.createElement("dialog");
+    dlg.className = "a11y-dlg";
+    dlg.setAttribute("aria-labelledby", "a11y-h");
+    const hasRuby = !!document.querySelector("ruby.a11y-rb");
+    dlg.innerHTML = `<h2 id="a11y-h">見やすさ・読みやすさ</h2><p>ほかのゲームにも同じ設定が使われます。文字は2本の指で広げると大きくなります。</p>` +
+      OPTS.filter(([k]) => k !== "ruby" || hasRuby).map(([k, n, d]) => `<label><input type="checkbox" data-k="${k}"><span>${n}<small>${d}</small></span></label>`).join("") +
+      `<p class="a11y-note" id="a11y-novoice" hidden>この端末には、外へ送らずに読める日本語の声がありません。</p><div class="a11y-row"><button type="button" class="a11y-ok" data-a11y-close>閉じる</button></div>`;
+    document.body.appendChild(dlg);
+    dlg.addEventListener("change", (e) => {
+      const k = e.target.dataset && e.target.dataset.k;
+      if (!k) return;
+      set(k, e.target.checked);
+      if (k === "say") dlg.querySelector("#a11y-novoice").hidden = !(e.target.checked && !voice());
+    });
+    dlg.querySelector("[data-a11y-close]").addEventListener("click", () => dlg.close());
+    dlg.addEventListener("close", () => { if (lastFocus && lastFocus.focus) lastFocus.focus(); });
+    sayBtn = document.createElement("button");
+    sayBtn.type = "button"; sayBtn.className = "a11y-saybtn"; sayBtn.textContent = "🔊 読む"; sayBtn.setAttribute("aria-label", "画面の問題を読み上げる");
+    sayBtn.addEventListener("click", () => {
+      try { if (speechSynthesis.speaking) return stop(); } catch { /* 無い端末 */ }
+      if (!say(sayText())) open();
+    });
+    document.body.appendChild(sayBtn);
+    if (!document.querySelector("[data-a11y-open]")) {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "a11y-btn a11y-float"; b.textContent = "Aa"; b.setAttribute("data-a11y-open", ""); b.setAttribute("aria-label", "見やすさの設定");
+      document.body.appendChild(b);
+    }
+    document.addEventListener("click", (e) => { const t = e.target.closest && e.target.closest("[data-a11y-open]"); if (t) { e.preventDefault(); open(); } });
+    apply();
+  };
+  const open = () => {
+    if (!dlg) build();
+    lastFocus = document.activeElement;
+    for (const c of dlg.querySelectorAll("input[data-k]")) c.checked = on(c.dataset.k);
+    dlg.querySelector("#a11y-novoice").hidden = !(on("say") && !voice());
+    if (dlg.showModal) dlg.showModal(); else dlg.setAttribute("open", "");
+  };
+  apply();
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", build); else build();
+  window.A11y = { on, set, open, say, stop };
+})();
+</script>
+<!-- a11y:end -->
 </head>
 <body>
 <div class="moon" aria-hidden="true"></div>
@@ -209,7 +368,8 @@ footer a{color:var(--lamp)}
     <div class="stat" id="stat"></div>
   </header>
 
-  <main id="view" aria-live="polite"></main>
+  <main id="view"></main>
+  <p id="live" class="sr" role="status" aria-live="polite"></p>
 
   <svg class="town" id="town" viewBox="0 0 600 90" aria-label="村の灯り" role="img"></svg>
 
@@ -334,6 +494,8 @@ let mem = load();
 let S = null; // 遊んでいる巻：{b, list, i, st, cards, got, lost, streak, best}
 const $ = (id) => document.getElementById(id);
 const view = () => $("view");
+// 知らせ（封じた・逃げられた・ヒントなど）を読み上げソフトに文字で届ける（#live は role=status）
+function tell(t) { const l = $("live"); if (!l) return; l.textContent = ""; setTimeout(() => { l.textContent = t; }, 30); }
 function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 const solvedIn = (b) => b.pages.filter((p) => mem.solved[p.id]).length;
 const allDone = () => ALL.every((p) => mem.solved[p.id]);
@@ -417,6 +579,7 @@ function frame() {
       `<rect class="win${lit ? " lit" : ""}" data-book="${b.id}" x="${x + 15}" y="${y + 18}" width="14" height="12" rx="2"/>`;
   });
   $("town").innerHTML = h;
+  $("town").setAttribute("aria-label", `村の灯り（${BOOKS.length}軒のうち${BOOKS.filter((b) => solvedIn(b) === b.pages.length).length}軒がともる）`);
   document.body.classList.toggle("dawn", allDone());
 }
 
@@ -454,7 +617,7 @@ function shelf() {
     return `<button class="spine${full ? " done" : ""}" data-book="${b.id}" style="--c:${b.c};height:${170 + (i % 3) * 14}px" aria-label="${b.name}の巻（${n}/${b.pages.length}${kan ? "・完封" : ""}${first ? "・はじめはここから" : ""}）">` + (first ? '<span class="first" aria-hidden="true">はじめに</span>' : "") +
       `<span class="band"></span><span class="t">${b.name}</span><span class="band"></span><span class="n">${n}/${b.pages.length}</span>${kan ? '<span class="kan" aria-hidden="true">完</span>' : ""}</button>`;
   }).join("") + "</div>";
-  h += `<p class="hint">本をタップして開く。どの巻からでもよい。1回に6ページずつ読む。</p><div class="mode"><button class="btn sub2" id="easy" aria-pressed="${easy()}">${easy() ? "📖 下読みあり" : "⚔️ 下読みなし"}</button><p class="hint" id="easyhint">${easy() ? "先に正しい条文を読んでから、うそを探す" : "いきなりうそを探す（完封はこちら）"}</p></div><div class="row"><button class="btn sub2" id="cho">封じ帳</button><button class="btn sub2" id="achbtn">実績</button><button class="btn sub2" id="calbtn">カレンダー</button></div>`;
+  h += `<p class="hint">本をタップして開く。どの巻からでもよい。1回に6ページずつ読む。</p><div class="mode"><button class="btn sub2" id="easy" aria-pressed="${easy()}">${easy() ? "📖 下読みあり" : "⚔️ 下読みなし"}</button><p class="hint" id="easyhint">${easy() ? "先に正しい条文を読んでから、うそを探す" : "いきなりうそを探す（完封はこちら）"}</p></div><div class="row"><button class="btn sub2" id="cho">封じ帳</button><button class="btn sub2" id="achbtn">実績</button><button class="btn sub2" id="calbtn">カレンダー</button><button class="btn sub2" id="a11ybtn" data-a11y-open>見やすさ</button></div>`;
   view().innerHTML = h;
   view().querySelectorAll(".spine").forEach((x) => x.addEventListener("click", () => openBook(x.dataset.book)));
   $("cho").addEventListener("click", cho);
@@ -475,10 +638,12 @@ function words(p) {
   const st = S.st;
   return p.w.map((x, k) => {
     const miss = st && st.miss === k ? " miss" : "";
-    if (k === p.lie && (!st || st.choose)) return `<button class="w${st && st.choose ? " lie" : ""}" data-k="${k}">${p.bad}</button>`;
-    if (k === p.lie) return `<span class="w ${st.ok ? "fixed" : "ans"}">${x}</span>`;
-    if (!st && S.marked.includes(k)) return `<span class="w okw">${x}</span>`;
-    return `<button class="w${miss}" data-k="${k}">${x}</button>`;
+    if (k === p.lie && st && st.choose) return `<span class="w lie" data-k="${k}" aria-label="${p.bad}（うその言葉）">${p.bad}</span>`;
+    if (k === p.lie && !st) return `<button class="w" data-k="${k}">${p.bad}</button>`;
+    if (k === p.lie) return `<span class="w ${st.ok ? "fixed" : "ans"}" aria-label="${x}（${st.ok ? "直した" : "正しい言葉"}）">${x}</span>`;
+    if (!st && S.marked.includes(k)) return `<span class="w okw" aria-label="${x}（しおり：正しい）">${x}</span>`;
+    if (st) return `<span class="w${miss}" data-k="${k}"${miss ? ` aria-label="${x}（選んだ言葉）"` : ""}>${x}</span>`;
+    return `<button class="w" data-k="${k}">${x}</button>`;
   }).join("");
 }
 
@@ -492,8 +657,8 @@ function render(turn) {
   if (!st && S.peek) {
     // 下読み：正しい条文だけを見せる（うそがあるかどうかは言わない）
     h += '<p class="peek-tag" id="peek">📖 下読み：これが正しい条文</p>' +
-      `<div class="text done clean">${p.w.map((x) => `<span class="w">${x}</span>`).join("")}</div>` +
-      '<p class="q">しおり「覚えたら、めくってね。ねじれ文字が1か所を書き換えるかも」</p>' +
+      `<div class="text done clean" data-a11y-say>${p.w.map((x) => `<span class="w">${x}</span>`).join("")}</div>` +
+      '<p class="q" data-a11y-say>しおり「覚えたら、めくってね。ねじれ文字が1か所を書き換えるかも」</p>' +
       '<button class="btn go" id="flip">めくる</button></article></div>';
     view().innerHTML = h;
     const fl = $("flip"); fl.focus({ preventScroll: true }); fl.addEventListener("click", () => { S.peek = false; render(true); });
@@ -502,11 +667,11 @@ function render(turn) {
   if (boss && !st) h += '<p style="margin:0"><span class="chip">巻末：大きなねじれ文字が潜んでいる</span></p>';
   if (S.streak % POWER === POWER - 1 && !st) h += '<p class="streak">しおりの力が、あと1つで満ちる！</p>';
   if (!st) {
-    h += `<div class="text">${words(p)}</div><p class="q">${S.marked.length ? "しおり「緑の言葉は正しいよ」" : S.easy ? "下読みとちがう言葉をタップ。同じなら下のボタン。" : "うそに書き換えられた言葉をタップ。"}</p>` +
+    h += `<div class="text" data-a11y-say>${words(p)}</div><p class="q" data-a11y-say>${S.marked.length ? "しおり「緑で ✓ の付いた言葉は正しいよ」" : S.easy ? "下読みとちがう言葉をタップ。同じなら下のボタン。" : "うそに書き換えられた言葉をタップ。"}</p>` +
       `<div class="tools"><button class="none" id="none">このページにうそは無い</button>${S.hint > 0 ? '<button class="shiori" id="shiori">🔖 しおりに聞く</button>' : ""}</div>`;
   } else if (st.choose) {
     if (!S.cards) S.cards = shuffle([p.w[p.lie], ...p.alt]);
-    h += `<div class="text done">${words(p)}</div><p class="lurk">${monster(p, boss)}<span>ねじれ文字が姿を現した！ 正しい札をはめて封じる。</span></p>` +
+    h += `<div class="text done" data-a11y-say>${words(p)}</div><p class="lurk">${monster(p, boss)}<span data-a11y-say>ねじれ文字が姿を現した！ 正しい札をはめて封じる。</span></p>` +
       `<div class="cards">${S.cards.map((c) => `<button class="card">${c}</button>`).join("")}</div>`;
   } else {
     const clean = p.lie < 0;
@@ -515,17 +680,21 @@ function render(turn) {
     else if (st.ok) { face = `<div class="fuda">${monster(p, false)}<span class="stamp">封</span></div>`; head = `封じた！ ねじれ「${p.bad}」`; }
     else { face = `<div class="flee">${monster(p, boss)}</div>`; head = `逃げられた… 正しくは「${p.w[p.lie]}」`; }
     if (st.power) { head = `しおりの大技「${st.power}」！ ` + head; if (clean) face = `<span>${buddy(true)}</span>`; }
+    S.said = `${head}${st.note ? " " + st.note : ""}`;
     h += `<div class="text done">${clean ? p.w.join("") : words(p)}</div>` +
-      `<div class="res${st.power ? " power" : ""}" id="res">${face}<p><b>${head}</b><br>${st.note ? st.note + "<br>" : ""}${p.why}</p></div>` +
+      `<div class="res${st.power ? " power" : ""}" id="res">${face}<p data-a11y-say><b>${head}</b><br>${st.note ? st.note + "<br>" : ""}${p.why}</p></div>` +
       `<button class="btn go" id="next">${S.i < S.list.length - 1 ? "次のページへ" : "本を閉じる"}</button>`;
   }
   h += "</article></div>";
   view().innerHTML = h;
   view().querySelectorAll(".text:not(.done) button.w").forEach((x) => x.addEventListener("click", () => pick(+x.dataset.k)));
   view().querySelectorAll(".card").forEach((x) => x.addEventListener("click", () => fit(x.textContent)));
+  // キーで遊ぶ人が迷わないよう、描き直したら次に押す所へ枠を移す（答え合わせは「次へ」、札を選ぶときは最初の札）
+  const fc = view().querySelector(".card"); if (fc) fc.focus({ preventScroll: true });
   const n = $("none"); if (n) n.addEventListener("click", () => finish(p.lie < 0, p.lie < 0 ? null : `うそがあった。「${p.bad}」がねじれ文字。`));
   const sh = $("shiori"); if (sh) sh.addEventListener("click", () => { S.hint--; S.hinted = true; S.marked = hintWords(p); render(); });
   const g = $("next"); if (g) { g.focus({ preventScroll: true }); g.addEventListener("click", next); }
+  if (st && st.done) tell(S.said); else if (st && st.choose) tell("ねじれ文字が姿を現した。正しい札を選ぶ。"); else if (S.marked.length && S.hinted && S.hint === 0 && !S.toldHint) { S.toldHint = true; tell(`しおり：✓ の付いた言葉 ${S.marked.length}つは正しい。`); }
 }
 
 function pick(k) {
@@ -547,7 +716,7 @@ function finish(ok, note, miss) {
   render();
 }
 function next() {
-  S.i++; S.st = null; S.cards = null; S.marked = []; S.peek = S.easy;
+  S.i++; S.st = null; S.cards = null; S.marked = []; S.toldHint = false; S.peek = S.easy;
   if (S.i < S.list.length) render(true); else fin();
 }
 
@@ -566,7 +735,7 @@ function fin() {
   const fresh8 = achNow(mem).filter((a) => a.done && !mem.ach[a.id]);
   fresh8.forEach((a) => { mem.ach[a.id] = 1; });
   save();
-  view().innerHTML = `<div class="panel" id="fin"><h2>${full ? `${b.name}の巻を取り戻した！` : `${b.name}の巻 ${n} / ${b.pages.length} ページ`}</h2>` +
+  view().innerHTML = `<div class="panel" id="fin"><h2 data-a11y-say>${full ? `${b.name}の巻を取り戻した！` : `${b.name}の巻 ${n} / ${b.pages.length} ページ`}</h2>` +
     (perfect ? `<p class="kanpu" id="kanpu"><span class="big" aria-hidden="true">完</span><span>完封！${firstKan ? `<br><small>${b.name}の巻に印が付いた</small>` : ""}</span></p>` : "") +
     `<p>${S.list.length}ページ中 ${S.got.length}ページを一度で直した。${S.best >= 3 ? `れんぞく ${S.best}！` : ""}</p>` +
     (full6 && !perfect ? `<p class="hint" id="kanhint">${S.easy ? "下読みなしで" : S.hinted ? "しおりに聞かずに" : ""}6ページを一度で直すと「完封」。</p>` : "") +
@@ -575,6 +744,7 @@ function fin() {
     (mons ? `<div class="mons">${mons}</div>` : "") +
     `<div class="row">${lost.length ? '<button class="btn" id="chase">逃がした魔を追う</button>' : full ? "" : '<button class="btn" id="more">続きを読む</button>'}<button class="btn sub2" id="back">本棚へ</button></div>` +
     (full && S.madeFull ? ask("askfin") : "") + `</div>`;
+  tell(`${full ? `${b.name}の巻を取り戻した。` : `${b.name}の巻 ${n}/${b.pages.length}ページ。`}${perfect ? "完封。" : ""}${fresh8.length ? `実績：${fresh8.map((a) => a.name).join("・")}。` : ""}`);
   const c = $("chase"); if (c) c.addEventListener("click", () => openBook(b.id, lost));
   const m = $("more"); if (m) m.addEventListener("click", () => openBook(b.id));
   $("back").addEventListener("click", shelf);
@@ -620,7 +790,7 @@ function calView(ym) {
   view().innerHTML = `<div class="panel" id="calview"><h2>カレンダー</h2>` +
     `<div class="calhead"><button class="btn sub2" id="prevm" aria-label="前の月"${ym <= first ? " disabled" : ""}>‹</button><b>${y}年${m}月</b>` +
     `<button class="btn sub2" id="nextm" aria-label="次の月"${ym >= now ? " disabled" : ""}>›</button></div><div class="cal" id="cal">${g}</div>` +
-    `<p class="keys"><span><i style="background:#e7b04f5c"></i>読んだ</span><span><i style="background:#e7b04f90"></i>6ページ</span><span><i style="background:var(--lamp)"></i>12ページ</span></p>` +
+    `<p class="keys"><span><i class="k1" style="background:#e7b04f5c;color:#efe8d8" aria-hidden="true"></i>読んだ</span><span><i class="k2" style="background:#e7b04fb8" aria-hidden="true"></i>6ページ</span><span><i class="k3" style="background:var(--lamp)" aria-hidden="true"></i>12ページ</span></p>` +
     `<p class="calnote" id="calnote">遊んだ日 合計 ${played.length}日${st >= 1 ? `<span id="streak">・続けて ${st}日</span>` : ""}</p>` +
     '<div class="row"><button class="btn sub2" id="back">本棚へ</button></div></div>';
   $("prevm").addEventListener("click", () => calView(shift(-1)));

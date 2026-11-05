@@ -31,6 +31,7 @@ QA_SHIFT_DAYS=27 node qa/run.mjs   # カレンダー・日付を変えたとき�
 - 機能を足す・直すたびに `qa/run.mjs` に検査を足す。乱数で組む部分（ページの並び・札の並びなど）は、1回遊ぶだけでなく何百回も作って毎回の結果を確かめる（2026-10-31 段の話を使い切ると0人の村ができた。shared-workflows `incidents/2026-10-31-roppo-empty-village.md`）。
 - PWA（`manifest.webmanifest`・`sw.js`・`icon-*.png`）：画面のファイルを足したら `sw.js` の `SHELL` にも足し、中身を大きく変えたら `CACHE` の版を上げる。sw.js は外へ何も送らない（Google Fonts の文字を保存するだけ）。
 - 応援は Ko-fi（https://ko-fi.com/satouaaaaa）へのただのリンクだけ。Ko-fi のボタン用スクリプトは入れない（外へ通信させない）。遊ぶのは無料のまま、有料版は置かない（GitHub Pages は売り買いが主目的のサイトに使えない）。
+- 見やすさ：`</head>` の前の見やすさの設定（`<!-- a11y:begin -->`〜`end`）は shared-workflows `template/a11y/a11y.html` の写しで、ここでは直さない。`qa/a11y.mjs` も `template/qa/a11y.mjs` の写し（画面の足し方・許しは `qa/a11y.json` に理由つき）。色だけで分けない（しおりの正しい言葉は ✓、まちがえて選んだ言葉は ✕ と破線、うその言葉は取り消し線、直した言葉は ✓、逃げた魔は破線の枠と「逃げた」、カレンダーの灯りの段は点の数 •・••・•••、言葉に読み上げ用の名前。「色の見分けを助ける」ではうそ＝朱 `#A63D00`・直した＝青 `#005A8C`）・コントラスト 4.5:1（夜明けの空も濃いめにする）・知らせは `#live`（role=status。封じた・逃げられた・しおり・巻の終わりを文字で）・決めつけの言葉を使わない（shared-workflows `routines/game-dev.md`「だれでも遊べるように」）。classic.html には入れない。
 - 公開リポジトリなので、個人情報・鍵を入れない。記録は遊ぶ人のブラウザ（localStorage）にだけ置き、外へ送らない。
 
 ## 公開
