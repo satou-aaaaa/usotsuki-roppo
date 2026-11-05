@@ -4,13 +4,15 @@
 # Claude Code のクラウドセッションでは .claude/settings.json の SessionStart フックが自動で呼ぶ。
 # CI の Setup check（共通部品）が、まっさらな環境でこれが通るかを確かめる。
 # ひな形: satou-aaaaa/shared-workflows の template/scripts/setup.sh。このリポジトリは検査（qa/）の Node.js だけ。
-# ひな形の版: 3（上げたら写しの版も上げる。scripts/drift-check.mjs が古い写しを週次まとめに出す）
+# ひな形の版: 4（上げたら写しの版も上げる。scripts/drift-check.mjs が古い写しを週次まとめに出す）
 #   2: 依存は毎回 npm ci・ブラウザが無ければ止める・このシェルで要る操作（nvm use・export）を最後に出す（shared-workflows incidents/2026-11-03-setup-false-ready.md）
 #   3: nvm.sh を --no-use で読む（.nvmrc の版が入っていないと、読んだだけで何も言わずに止まっていた。incidents/2026-11-04-setup-nvm-silent-stop.md）
+#   4: ブラウザの場所はファイルかも見る（-x だけだとフォルダでも通った。2026-11-05 CodeRabbit が bunshi-tsukuri #1 で指摘）
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 fail() { echo "✗ $*" >&2; exit 1; }
+runnable() { [ -f "$1" ] && [ -x "$1" ]; }   # 動かせるファイルか（フォルダも -x では通るので -f も見る）
 # 準備のあと、このシェルで打つ必要がある操作。1つでもあれば最後に「✓」を出さない
 todo=()
 # 環境変数を以後のコマンドに渡す。クラウドセッションは CLAUDE_ENV_FILE に書く。
@@ -46,12 +48,12 @@ if [ "${PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD:-}" = 1 ]; then
   # 取ってこない環境（Claude Code のクラウドなど）は、入っているものを探す。見つからなければ止める
   pre=${PW_PREINSTALLED:-/opt/pw-browsers/chromium}   # PW_PREINSTALLED は検査（check-setup-template.sh）用
   if [ -n "${CHROMIUM_PATH:-}" ]; then
-    [ -x "$CHROMIUM_PATH" ] || fail "CHROMIUM_PATH=$CHROMIUM_PATH が動かせない（ブラウザの場所を直すか、unset CHROMIUM_PATH）"
-  elif [ -x "$pre" ]; then
+    runnable "$CHROMIUM_PATH" || fail "CHROMIUM_PATH=$CHROMIUM_PATH が動かせない（ブラウザの場所を直すか、unset CHROMIUM_PATH）"
+  elif runnable "$pre"; then
     session_env "CHROMIUM_PATH=$pre"
   else
     def=$(cd "$npm_dir" && node -e 'try{process.stdout.write(require("playwright").chromium.executablePath())}catch{}' 2>/dev/null || true)
-    [ -n "$def" ] && [ -x "$def" ] || fail "使えるブラウザが無い（PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 で取ってこない設定）。CHROMIUM_PATH にブラウザの場所を入れるか、PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD を外して入れ直す"
+    [ -n "$def" ] && runnable "$def" || fail "使えるブラウザが無い（PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 で取ってこない設定）。CHROMIUM_PATH にブラウザの場所を入れるか、PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD を外して入れ直す"
   fi
 else
   (cd "$npm_dir" && npx playwright install chromium)
