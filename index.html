@@ -765,7 +765,7 @@ function render(turn) {
       `<button class="btn go" id="next">${er ? "次のページへ" : S.i < S.list.length - 1 ? "次のページへ" : "本を閉じる"}</button>`;
   }
   h += "</article></div>";
-  if (er) h += `<p class="hint" id="ehint">まちがえても続く。好きなところで降りられる。</p><button class="btn sub2 wide" id="quit">ここで降りる（${er.n}ページで終える）</button>`;
+  if (er) h += `<p class="hint" id="ehint">まちがえても続く。好きなところで降りられる。</p><button class="btn sub2 wide" id="quit">ここで降りる（${answered(er)}ページで終える）</button>`;
   view().innerHTML = h;
   view().querySelectorAll(".text:not(.done) button.w").forEach((x) => x.addEventListener("click", () => pick(+x.dataset.k)));
   view().querySelectorAll(".card").forEach((x) => x.addEventListener("click", () => fit(x.textContent)));
@@ -792,7 +792,7 @@ function finish(ok, note, miss) {
   try { merge(); } catch (e) { /* 読めなくても続ける */ } // 別のタブで同じ日に読んだページ数に足す
   if (S.mode === "e") { // とことん：封じ帳・その日の数には入れず、回の進み具合だけ残す。別の画面で進んだ回なら数えない（二重に入れない）
     const r = mem.erun;
-    if (!runOk(r) || r.id !== S.eid || r.i !== S.i) return shelf();
+    if (!runOk(r) || r.id !== S.eid || r.i !== S.i || r.list[r.i] !== p.id) return shelf(); // 番号だけでなくページも同じか見る（同じ数のまま別のタブで並びが替わったとき。2026-11-06 CodeRabbit）
     r.miss = missOf(r); r.i++; if (ok) r.n++; else r.miss++;
     refill(r);
     if (ok) { S.got.push(p); S.streak++; S.best = Math.max(S.best, S.streak); if (S.streak % POWER === 0) S.st.power = techFor(S.b); }

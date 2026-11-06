@@ -275,9 +275,10 @@ try {
   const q = await browser.newPage({ viewport: { width: 320, height: 760 } });
   if (shift) await q.clock.setFixedTime(new Date(Date.now() + shift * 86400e3));
   const errQ = []; q.on("pageerror", (e) => errQ.push(e.message));
-  // 初めの1回だけ古い記録を置く。印は localStorage に置く（file:// の sessionStorage は、すぐ読み直すと印が残らないことがあり、途中の reload で記録が初めに戻った。2026-11-06）
-  await q.addInitScript(() => { if (!localStorage.getItem("qa-once")) { localStorage.setItem("qa-once", "1"); localStorage.setItem("roppo-seal-v1", JSON.stringify({ solved: { ken1: true }, days: [1], keep: 5 })); } });
+  // 初めの1回だけ古い記録を置いて読み直す。印を storage に置く addInitScript は、file:// で印が読めず途中の reload で記録が初めに戻ることがあった（2026-11-06。sessionStorage でも localStorage でも起きた）ので使わない
   await q.goto(url);
+  await q.evaluate(() => localStorage.setItem("roppo-seal-v1", JSON.stringify({ solved: { ken1: true }, days: [1], keep: 5 })));
+  await q.reload();
   const old = await q.evaluate(() => ({ s: mem.solved.ken1, keep: mem.keep, kinds: ["days", "kanpu", "ach"].every((k) => mem[k] && typeof mem[k] === "object" && !Array.isArray(mem[k])) }));
   check("古い記録（solved だけ・形のちがう入れ物）を読んでも、直したページと知らない入れ物を消さず、足りない入れ物を補う", old.s === true && old.keep === 5 && old.kinds, JSON.stringify(old));
   await q.evaluate(() => { localStorage.removeItem(KEY); mem = load(); mem.opt.easy = false; shelf(); });
@@ -512,8 +513,13 @@ try {
     await solveQ(); await q.click("#next");
     const wrap2 = await q.evaluate(() => ({ len: mem.erun.list.length, i: mem.erun.i, n: mem.erun.n, id: S.list[S.i].id, page: document.querySelector("#epage").textContent, books: new Set(mem.erun.list.map((x) => byId[x].book.id)).size }));
     check("並びを読み終えても、新しい並び（読んだ巻のページ全部）で続き、ページ数は通しで数える", wrap === "ken2" && wrap2.i === 0 && wrap2.n === 2 && wrap2.len === 20 && wrap2.books === 2 && wrap2.id !== "ken2" && wrap2.page.includes("3ページ目"), JSON.stringify(wrap2));
+    check("「ここで降りる」のページ数は、まちがえたページも入れた答えた数（上のページ数と同じ）", (await q.textContent("#quit")).includes("2ページで終える"));
+    // 同じ答えた数のまま、別のタブで並びが替わった：古い画面のページで答えても数えない（番号だけでなくページも見る。2026-11-06 CodeRabbit）
+    const stale = await q.evaluate(() => { const r = mem.erun, other = r.list.find((x) => x !== S.list[S.i].id); r.list = r.list.slice(); r.list[r.i] = other; localStorage.setItem(KEY, JSON.stringify(mem)); const before = { i: r.i, n: r.n, miss: r.miss }; finish(true, null); const a = JSON.parse(localStorage.getItem(KEY)).erun; return { before, after: a && { i: a.i, n: a.n, miss: a.miss }, shelf: !document.getElementById("epage") }; });
+    check("別のタブで並びが替わったあと、古い画面のページで答えても進み具合に数えない", JSON.stringify(stale.before) === JSON.stringify(stale.after) && stale.shelf, JSON.stringify(stale));
+    await q.click("#go-e");
     await q.click("#quit");
-    check("時計が同じでも、新しい回は前に終えた回と別の id になる（同じ id だと終えた回とみなされて消える）", await q.evaluate(() => { const now = Date.now; try { Date.now = () => 1; mem.erun = null; mem.edone = "1-3"; startEndless(); return mem.erun.id === "1-4" && !!document.getElementById("epage"); } finally { Date.now = now; } }));
+    { const idc = await q.evaluate(() => { const now = Date.now; try { Date.now = () => 1; mem.erun = null; mem.edone = "1-30"; startEndless(); return { id: mem.erun && mem.erun.id, page: !!document.getElementById("epage"), ls: localStorage.getItem(KEY).slice(0, 400) }; } finally { Date.now = now; } }); check("時計が同じでも、新しい回は前に終えた回と別の id になる（同じ id だと終えた回とみなされて消える）", idc.id === "1-31" && idc.page, JSON.stringify(idc)); }
     await q.click("#quit");
     // 別のタブ：ベストは大きいほう。別のタブで終えた回を古いタブが書き戻さない。古い形の記録でも読める
     const tab = await q.evaluate(() => {
