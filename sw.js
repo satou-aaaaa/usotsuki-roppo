@@ -5,8 +5,9 @@ const CACHE = "roppo-v7";
 const FONT_CACHE = "roppo-fonts";
 const SHELL = ["./", "./index.html", "./classic.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./transfer.js"];
 
+// 入れるときは HTTP の保存を通さず取り直す（古い画面を新しい版に入れない。2026-11-06 CodeRabbit。shared-workflows routines/game-dev.md「PWA」）
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: "reload" })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (e) => {
