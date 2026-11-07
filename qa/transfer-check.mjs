@@ -10,6 +10,8 @@
 //          写しまちがい・別のゲーム・知らないキー・HTML の印の文字・大きく膨らむコードは弾く、ボタンは高さ44px以上、エラーが出ない。
 //          版10: 書き込みが失敗しても記録が消えない（取り込み・控えに戻す）・保存に失敗したままなら入れ替えない・
 //                入れ替えの前に開いたタブが古い記録で上書きしない・コードの後ろに言葉が続いても読む・大きく膨らむコードは途中で広げるのをやめる。
+// 待ち方の決まり: 読み込み・読み直しのあとに記録を比べるときは、決まった時間（300ms）で比べず settle()（記録が落ち着くまで待つ）を使う。
+//   読み直しを起こす操作の結果は、その場で sessionStorage に書き、読み直しのあとに読む（重い PC・CI で揺れない。incidents/2026-11-07-transfer-check-flaky-under-load.md）
 import { deflateRawSync } from "node:zlib";
 
 const CRC = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
@@ -249,7 +251,8 @@ export async function checkTransfer({ browser, url, game, sample, check, open })
   const bk1 = await pd.evaluate((g) => { try { return JSON.parse(localStorage.getItem("hk-backup:" + g) || "null"); } catch (e) { return null; } }, game);
   check("引き継ぎ：残った戻す前の記録が壊れていても、控えに戻すと、いまの記録が控えに残る", JSON.stringify(await dump(pd)) === want && !!bk1 && sorted(bk1.d) === nb && (await pd.evaluate((g) => localStorage.getItem("hk-prev:" + g), game)) === null, JSON.stringify(bk1).slice(0, 80));
   // 途中で止まったあとに記録が変わっていたら、残った記録へ戻すときも、いまの記録を控えにする（版11。meirei-narabe #4 の CodeRabbit）
-  await putRec(pd, before, { ["hk-prev:" + game]: JSON.stringify({ at: new Date().toISOString(), d: JSON.parse(want) }), ["hk-backup:" + game]: JSON.stringify({ at: new Date().toISOString(), d: {} }), ["hk-prevfp:" + game]: "止まったときの印" });
+  // 控え（hk-backup:）の時刻は1時間前にする。同じ「いま」で2回作ると、ミリ秒が進んだとき控えのほうが新しくなり、空の控えへ戻って落ちた（sentaku-hyoji #3 の CodeRabbit）
+  await putRec(pd, before, { ["hk-prev:" + game]: JSON.stringify({ at: new Date().toISOString(), d: JSON.parse(want) }), ["hk-backup:" + game]: JSON.stringify({ at: new Date(Date.now() - 3600e3).toISOString(), d: {} }), ["hk-prevfp:" + game]: "止まったときの印" });
   await pd.reload();
   await pd.waitForTimeout(300);
   if (await pd.locator("#hk-toast-close").count()) await pd.click("#hk-toast-close");
@@ -260,6 +263,14 @@ export async function checkTransfer({ browser, url, game, sample, check, open })
   await pd.waitForTimeout(300);
   const bk2 = await pd.evaluate((g) => JSON.parse(localStorage.getItem("hk-backup:" + g) || "null"), game);
   check("引き継ぎ：止まったあとに遊んだ記録は、残った記録へ戻しても控えに残る（上書きで消えない）", JSON.stringify(await dump(pd)) === want && !!bk2 && sorted(bk2.d) === nb2, JSON.stringify(bk2).slice(0, 80));
+  // 控えの d が配列なら記録として使わない（「控えに戻す」を出さない。版12、dento-kogei #5 の CodeRabbit）
+  await putRec(pd, before, { ["hk-backup:" + game]: JSON.stringify({ at: new Date().toISOString(), d: ["x"] }) });
+  await pd.reload();
+  await pd.waitForTimeout(300);
+  if (await pd.locator("#hk-toast-close").count()) await pd.click("#hk-toast-close");
+  await openBox(pd);
+  check("引き継ぎ：控えの中身が配列なら、「控えに戻す」を出さない", (await pd.locator("#hk-undo").count()) === 0);
+  await pd.keyboard.press("Escape").catch(() => {});
   // 止まって戻す前の記録が残ったまま、別の記録を取り込んだら、「控えに戻す」はその取り込みの前の記録へ戻す（版11。akushitsu-miyaburi #4 の CodeRabbit）
   await putRec(pd, before, { ["hk-prev:" + game]: JSON.stringify({ at: new Date(Date.now() - 3600e3).toISOString(), d: {} }) });
   await pd.reload();
