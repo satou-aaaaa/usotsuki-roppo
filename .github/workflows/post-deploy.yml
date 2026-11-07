@@ -24,3 +24,7 @@ jobs:
       paths: ''
       # ブランチから公開するリポジトリは true。Actions から公開するなら dispatch に公開ワークフローのファイル名を書く
       pages_build: true
+      # 点検の要るファイルを戻す差し戻しはマージせず人に回す（automerge.yml の hold_paths と同じ値）
+      hold_paths: '^(index\.html|sw\.js|manifest\.webmanifest)$'
+      # main の必須チェック（ルールセット）を通すため、差し戻しのブランチで起こす検査
+      recheck: qa.yml secret-scan.yml

@@ -46,6 +46,10 @@ export async function checkTransfer({ browser, url, game, sample, check, open })
   check("引き継ぎ：QR が出る", await pa.waitForSelector("#hk-qr svg", { timeout: 3000 }).then(() => true, () => false));
   const small = await sizes(pa);
   check("引き継ぎ：ボタンは高さ44px以上", small.length === 0, JSON.stringify(small));
+  // 版7：古いブラウザ向けの縮めないコード（HK0）に作り直せる
+  await pa.click("#hk-plain");
+  check("引き継ぎ：古いブラウザ向けに縮めないコード（HK0）を作り直せる", await pa.waitForFunction(() => /^HK0\./.test(document.querySelector("#hk-code")?.value || ""), null, { timeout: 3000 }).then(() => true, () => false));
+  const code0 = await pa.inputValue("#hk-code");
   await pa.keyboard.press("Escape");
   check("引き継ぎ：Esc で閉じる", (await pa.locator(".hk-box").count()) === 0);
 
@@ -129,6 +133,31 @@ export async function checkTransfer({ browser, url, game, sample, check, open })
   await pb.click("#hk-go");
   check("引き継ぎ：URL ごと貼っても読める", await pb.waitForSelector("#hk-yes", { timeout: 3000 }).then(() => true, () => false));
   await pb.click("#hk-no");
+
+  // 6. 縮めないコード（HK0）も、取り込むと同じ記録になる（形だけでなく中身まで。2026-11-07 akushitsu-miyaburi #1 の CodeRabbit）
+  await pb.goto("about:blank");
+  await pb.goto(url + "#hk=" + code0);
+  await pb.waitForSelector("#hk-yes");
+  await Promise.all([pb.waitForEvent("load"), pb.click("#hk-yes")]);
+  await pb.waitForTimeout(300);
+  check("引き継ぎ：縮めないコード（HK0）でも、取り込むと同じ記録になる", JSON.stringify(await dump(pb)) === want);
+  if (await pb.locator("#hk-toast-close").count()) await pb.click("#hk-toast-close");
+
+  // 7. 記録の保存に失敗したままなら、古い記録のコードを作らず知らせる（版7。2026-11-07 mukashi-narabe #1 の CodeRabbit）
+  const C = await browser.newContext({ viewport: { width: 375, height: 740 } });
+  // transfer.js が見張りを付ける前の setItem を、印のキーだけ失敗するものにする（空きが足りない端末の代わり）
+  await C.addInitScript(() => { const o = Storage.prototype.setItem; Storage.prototype.setItem = function (k, v) { if (window.__hkFail === k) throw new DOMException("full", "QuotaExceededError"); return o.call(this, k, v); }; });
+  const pc = watch(await C.newPage());
+  await pc.goto(url);
+  await pc.evaluate((s) => { localStorage.clear(); for (const [k, v] of Object.entries(s)) localStorage.setItem(k, v); }, sample);
+  await pc.reload();
+  await pc.waitForTimeout(300);
+  await pc.evaluate((k) => { window.__hkFail = k; try { localStorage.setItem(k, "{}"); } catch (e) { /* 失敗させる */ } }, firstKey);
+  await openBox(pc);
+  await pc.waitForTimeout(300);
+  check("引き継ぎ：保存に失敗したままなら、コードを作らずに知らせる", (await pc.locator("#hk-stale").count()) === 1 && !(await pc.evaluate(() => document.querySelector("#hk-code")?.value || "")));
+  await pc.keyboard.press("Escape");
+  await C.close();
 
   check("引き継ぎ：エラーが出ない", errors.length === 0, errors.join(" / "));
   await A.close();

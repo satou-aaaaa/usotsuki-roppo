@@ -1,7 +1,7 @@
 // うそつき六法を端末に保存して、電波が無くても遊べるようにする（PWA）。
 // 画面は先にネットを見て、つながらないときだけ保存したものを使う（直した版がすぐ届く）。
 // 文字（Google Fonts）は一度取ったら保存したものを使う。記録（localStorage）には触らない。外へ何も送らない。
-const CACHE = "roppo-v9";
+const CACHE = "roppo-v10";
 const FONT_CACHE = "roppo-fonts";
 const SHELL = ["./", "./index.html", "./classic.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./transfer.js"];
 
