@@ -743,13 +743,16 @@ try {
     check(`${tag}：本棚の部品どうしがくっつかない（間が8px以上）`, gaps.every((g) => g >= 8), gaps.map(Math.round).join(","));
     await u.click('.spine[data-book="ken"]');
     check(`${tag}：下読みの画面にも「本棚へもどる」がある`, (await u.locator("#peek").count()) === 1 && (await u.locator("#leave").count()) === 1);
+    await u.click("#leave");
+    check(`${tag}：下読みの画面で「本棚へもどる」を押すと本棚に戻る`, (await u.locator(".spine").count()) === 6 && (await u.locator("#peek").count()) === 0 && await u.evaluate(() => S === null));
+    await u.click('.spine[data-book="ken"]');
     await u.click("#flip");
     const lv = await box("#leave"), pg = await box(".stage"); // .page はめくる動きの途中で形が変わるので外の .stage で測る
     check(`${tag}：巻の途中でも「本棚へもどる」で戻れる（本の下、44px以上）`, lv && pg && lv.top >= pg.bottom && lv.bottom - lv.top >= 44, JSON.stringify({ lv, pg }));
     check(`${tag}：本のページで横にはみ出さない`, (await over()) <= 0);
     await u.evaluate(() => { const p = S.list[S.i]; if (p.lie >= 0) document.querySelector(`.w[data-k="${p.lie}"]`).click(); else document.getElementById("none").click(); });
     if (await u.locator(".card").count()) await u.locator(".card", { hasText: await u.evaluate(() => S.list[S.i].w[S.list[S.i].lie]) }).first().click();
-    check(`${tag}：答えると、答え合わせ（#res）と次へのボタンが画面の中に出る`, await u.evaluate(() => { const r = document.getElementById("res"), n = document.getElementById("next"); return !!r && !!n && n.getBoundingClientRect().bottom <= innerHeight + scrollY; }));
+    check(`${tag}：答えると、答え合わせ（#res）と次へのボタンが画面の中に出る`, await u.evaluate(() => { const r = document.getElementById("res"), n = document.getElementById("next"); if (!r || !n) return false; const b = n.getBoundingClientRect(); return b.top >= 0 && b.bottom <= innerHeight; }));
     await u.click("#leave");
     check(`${tag}：「本棚へもどる」を押すと本棚に戻り、直したページは残る`, (await u.locator(".spine").count()) === 6 && await u.evaluate(() => S === null && Object.keys(mem.solved).length === 1));
     // 巻の終わりは上から見せる（下のほうで最後のページを閉じても、巻の名前から出る）
