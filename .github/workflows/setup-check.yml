@@ -12,6 +12,20 @@ on:
       - "**/package-lock.json"
       - requirements.txt
       - pyproject.toml
+      - "**/.npmrc"
+      - .github/workflows/setup-check.yml
+  # 直した準備がマージされたら main でも動かす（動かさないと、月1の失敗の Issue が次の月まで閉じない。2026-11-07 kotowaza-bamen #1 の CodeRabbit）
+  push:
+    branches: [main]
+    paths:
+      - scripts/setup.sh
+      - .nvmrc
+      - .python-version
+      - "**/package.json"
+      - "**/package-lock.json"
+      - requirements.txt
+      - pyproject.toml
+      - "**/.npmrc"
       - .github/workflows/setup-check.yml
   schedule:
     # 毎月2日 07:23 JST（= 1日 22:23 UTC）

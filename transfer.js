@@ -1,5 +1,5 @@
 // 引き継ぎコード（transfer.js）：このゲームの記録を「コード」と「QR」にして、別の端末へ移す。サーバーは使わない。
-// 引き継ぎの版: 9
+// 引き継ぎの版: 12
 // 正：satou-aaaaa/shared-workflows の template/transfer.js（各ゲームはこれをそのまま写す。直すときはひな形を直して配り、版を上げる）
 // 使い方（index.html の <head> の中、ゲームの script より前に、defer を付けずに置く）:
 //   <script src="transfer.js" data-game="kippu-10" data-keys="kippu-v1"></script>
@@ -23,6 +23,19 @@
 //   - 版8（2026-11-07 CodeRabbit。gogen-suiri #1・mukashi-narabe #1）: 縮めないコード（HK0）は、base64 を戻す前に長さで弾く・
 //     控えに戻したとき、戻す前が空でも「空の記録」を控えに残す（もう一度押せば空に戻せる。前は控えごと消えて行き来できなかった）。
 //   - 版9（2026-11-07 CodeRabbit。sagi-minuki #2・tenkizu-yomi #25）: 行が分かれたコードを試すとき（whole）も、HK0 は戻す前に長さで弾く。
+//   - 版10（2026-11-07 shared-workflows #219 にためた CodeRabbit の指摘）:
+//     控えに戻す前に、いまの記録を別のキー（hk-prev:<ゲーム>）に書く。書けなければ戻さない（途中で止まっても記録が消えない）・
+//     入れ替えたら番号（hk-sync）を進め、前の番号で開いたタブはゲームの保存を書かずに読み直す（知らせが届かなくても古い記録で上書きしない）・
+//     保存に失敗したままの間は、入れ替え・控えに戻すを止める（手元にだけある最新の記録が消える）・
+//     貼りつけは1回だけつなぎ、先頭の1語も試す（コードの後ろに言葉が9語以上続いても読む）・作り直すときは記録を読み直し、作り終えたところで保存の失敗も見直す・
+//     コピーの代わりの道は、箱を閉じたあとならボタンにフォーカスを戻さない。
+//   - 版11（2026-11-07 shared-workflows #219。nijushi-sekki #4・meirei-narabe #4 の CodeRabbit）:
+//     途中で止まって残った戻す前の記録（hk-prev:）が壊れていたら使わず、いまの記録から作り直す（壊れた値を控えにすると、いまの記録が消える）・
+//     途中で止まったあとに記録が変わっていたら、残った記録へ戻すときも、いまの記録を控えにする（あとから遊んだ分が消えない。止まったときの記録の印は hk-prevfp:）・
+//     入れ替えの番号は、入れ替えに失敗したら元に戻す（記録は変わらないのに、ほかのタブの保存が捨てられる）・
+//     古いタブの保存を捨てたときは、帯（#hk-stale-tab）で「保存できない・読み直して」と知らせる（読み直しが遅れても、黙って記録が消えない）・
+//     読み直しが例外で止まったら、次の保存でまた読み直す。
+//   - 版12（2026-11-07 dento-kogei #5 などの CodeRabbit）: 控え（hk-backup:・hk-prev:）の d が配列なら記録として使わない。
 (function () {
   "use strict";
   var VERSION = 4; // コードの形の版（形を変えたときだけ上げる。上の「引き継ぎの版」とは別）
@@ -33,7 +46,9 @@
   var BACKUP = "hk-backup:" + GAME;
   var PENDING = "hk-pending:" + GAME;
   var DONE = "hk-done:" + GAME;
-  var SYNC = "hk-sync:" + GAME; // 入れ替えたことをほかのタブへ知らせる印（記録には入れない）
+  var SYNC = "hk-sync:" + GAME; // 入れ替えたことをほかのタブへ知らせる印・入れ替えの番号（記録には入れない）
+  var PREV = "hk-prev:" + GAME; // 控えに戻す途中だけ置く、戻す前の記録（版10）
+  var PREVFP = "hk-prevfp:" + GAME; // 控えに戻す途中で止まったときの記録の印（そのあと記録が変わったかを見る。版11）
   var MAX_JSON = 4 * 1024 * 1024; // localStorage はおおよそ 5MB まで
   var MAX_CODE = MAX_JSON * 2; // 貼りつけの長さの上限（HK0 の base64 でも MAX_JSON の 4/3 倍。URL・改行の分を足しても収まる）
   var QR_MAX = 2300; // QR（誤り訂正 L・40型）に入る URL の長さのめやす
@@ -64,11 +79,20 @@
   // 失敗したあとは、ゲームの手元の記録だけが新しく、localStorage は古い。そのまま書き出すと古い記録が送られる（版7）
   var unsaved = {};
   function isLocal(s) { try { return s === localStorage; } catch (e) { return false; } }
+  var mySync = ""; // このタブを開いたときの入れ替えの番号
+  var reloading = false;
   function watchSaves() {
+    mySync = syncNo();
     try {
       if (typeof Storage !== "function" || !Storage.prototype.setItem) return;
       var orig = Storage.prototype.setItem;
       Storage.prototype.setItem = function (k, v) {
+        // 別のタブで入れ替えたあとの古いタブは、手元の古い記録を書かずに読み直す（storage の知らせが届かなくても。版10）
+        if (isLocal(this) && ours(String(k)) && syncNo() !== mySync) {
+          staleTab();
+          if (!reloading) { reloading = true; try { location.reload(); } catch (e) { reloading = false; /* 次の保存でまた読み直す（版11） */ } }
+          return;
+        }
         try { orig.call(this, k, v); } catch (e) {
           if (isLocal(this) && ours(String(k))) unsaved[String(k)] = 1;
           throw e; // ゲームには今までどおり失敗を返す
@@ -78,6 +102,24 @@
     } catch (e) { /* 見張れないときは今までどおり */ }
   }
   function stale() { return Object.keys(unsaved).length > 0; }
+  // 古いタブの保存を捨てたことを知らせる帯（読み直しが遅れる・止まると、そのあいだの保存はゲームには成功に見えて消える。版11）
+  function staleTab() {
+    try {
+      if (document.getElementById("hk-stale-tab")) return;
+      var b = document.createElement("div");
+      b.id = "hk-stale-tab";
+      b.setAttribute("role", "alert");
+      b.style.cssText = "position:fixed;left:8px;right:8px;top:8px;z-index:2147483001;background:#fff3cd;color:#3d2c00;border:2px solid #8a6d00;border-radius:10px;padding:10px 12px;font:15px/1.5 system-ui,-apple-system,'Hiragino Sans','Noto Sans JP',sans-serif";
+      b.textContent = "別の画面で記録が入れ替わったので、この画面の記録は保存できません。読み直してください。";
+      var r = document.createElement("button");
+      r.type = "button";
+      r.textContent = "読み直す";
+      r.style.cssText = "display:block;margin-top:6px;min-height:44px;padding:0 16px;font:inherit;border-radius:8px;border:1px solid #8a6d00;background:#fff;color:#3d2c00";
+      r.onclick = function () { location.reload(); };
+      b.appendChild(r);
+      (document.body || document.documentElement).appendChild(b);
+    } catch (e) { /* なし */ }
+  }
   // d に入れ替える。失敗したら元に戻す
   function replaceAll(d) {
     var old = snapshot();
@@ -94,8 +136,24 @@
       throw e;
     }
   }
+  // d が配列のものは記録ではないので使わない（版12、dento-kogei #5 の CodeRabbit）
+  function readKey(key) {
+    try { var b = JSON.parse(localStorage.getItem(key) || "null"); return b && b.d && typeof b.d === "object" && !Array.isArray(b.d) ? b : null; } catch (e) { return null; }
+  }
+  // 控えに戻す途中で止まったときは、戻す前の記録（PREV）を控えとして出す（それがただ1つの写し。版10）
+  // 両方あるときは新しいほう（止まったあとに別の記録を取り込んだら、その取り込みの前の記録へ戻す。版11、akushitsu-miyaburi #4 の CodeRabbit）
   function readBackup() {
-    try { var b = JSON.parse(localStorage.getItem(BACKUP) || "null"); return b && b.d && typeof b.d === "object" ? b : null; } catch (e) { return null; }
+    var p = readKey(PREV), b = readKey(BACKUP);
+    if (!p || !b) return p || b;
+    var tp = Date.parse(p.at) || 0, tb = Date.parse(b.at) || 0;
+    return tb > tp ? b : p;
+  }
+  function syncNo() { try { return localStorage.getItem(SYNC) || ""; } catch (e) { return ""; } }
+  // 記録の印（キーの順によらない）。途中で止まったあとに記録が変わったかを見る（版11）
+  function fp(d) {
+    var k = Object.keys(d).sort();
+    var t = JSON.stringify(k.map(function (x) { return [x, d[x]]; }));
+    try { return crc32(new TextEncoder().encode(t)) + "." + t.length; } catch (e) { return String(t.length) + "." + t.slice(0, 64); }
   }
 
   // ---- コードの形 ----
@@ -152,11 +210,22 @@
     // 外すのを3行までにするのは、とても長いコードで CRC を何度も計り直さないため。版6）
     // 区切りは改行と空白（版7。前は改行だけ）。外すのは終わりの8つまで
     var lines = src.split(/\s+/).filter(Boolean);
-    for (var k = lines.length; k >= 1 && k >= lines.length - 8; k--) {
-      var c = un(lines.slice(0, k).join("")).replace(/\s+/g, "");
-      if (whole(c)) return c;
-    }
-    return un(src).replace(/\s+/g, "");
+    // URL でなく貼られたときは、HK で始まる語から読む（「コード: HK1....」のように前に言葉があっても。版10）
+    if (!m) { for (var h = 0; h < lines.length; h++) if (/^HK[01]\./.test(lines[h])) { lines = lines.slice(h); break; } }
+    // つなぐのは1回だけ。外す候補は長さで切り出す（とても長い貼りつけを何度も写さない。版10）
+    var full = lines.join(""), ends = [], at = 0;
+    for (var i = 0; i < lines.length; i++) { at += lines[i].length; ends.push(at); }
+    var tried = {};
+    var tryK = function (k) {
+      if (k < 1 || k > lines.length || tried[k]) return null;
+      tried[k] = 1;
+      var c = un(full.slice(0, ends[k - 1]));
+      return whole(c) ? c : null;
+    };
+    // 長いほうから終わりの8語まで、そのあと先頭の1語（コードの後ろに言葉が9語以上続くとき。版10）
+    for (var k = lines.length; k >= 1 && k >= lines.length - 8; k--) { var got = tryK(k); if (got) return got; }
+    var one = tryK(1); if (one) return one;
+    return un(full).replace(/\s+/g, "");
   }
   // 形と CRC が合う、ひとそろいのコードか
   function whole(c) {
@@ -177,6 +246,7 @@
     big: "記録が大きすぎます。",
     empty: "まだ記録がありません。",
     newer: "新しい版の引き継ぎコードです。ページを読み直して（アプリを開き直して）から試してください。",
+    unsavedSwap: "この端末で、最新の記録を保存できていません（空きが足りないかもしれません）。いま入れ替えると、その記録が消えます。端末の空きを作ってから、もう一度遊んで保存してください。",
     unsaved: "この端末で、最新の記録を保存できていません（空きが足りないかもしれません）。このままでは古い記録を送ってしまうので、コードを作りません。端末の空きを作ってから、もう一度遊んで保存してください。",
   };
   // 記録の中の文字に、HTML の印になる文字が無いか（JSON ならキーと文字の値を全部見る）
@@ -266,32 +336,70 @@
       if (!count(d) && count(job.d || {})) throw new Error("data-keys の外のキーだけ");
       job.d = d;
       var cur = snapshot();
+      var oldSync = localStorage.getItem(SYNC); // 入れ替えに失敗したら戻す（版11）
+      var swapped = false;
+      // 入れ替える前に番号を進める。前の番号で開いたタブは、ここから先ゲームの保存を書かない（watchSaves）。
+      // 書けなければ入れ替えない（古いタブが、取り込んだ記録を手元の古い記録で上書きしうる。版10、#252 の CodeRabbit）
+      var mySync = String(Date.now()) + "." + Math.random().toString(36).slice(2);
+      localStorage.setItem(SYNC, mySync);
       if (job.undo) {
         // 控えに戻す：控え（job.d と同じ中身）は入れ替えが済むまで上書きしない。途中で止まっても、もう一度「控えに戻す」で戻せる（版5）
-        try { replaceAll(job.d); } catch (e) { partial = e.rolledBack === false; throw e; }
-        // 済んだら、戻す前の記録を控えにする（もう一度押すと戻る）。控えを書けなければ、戻す前の記録の写しが無くなるので入れ替えを戻す
-        // 戻す前が空でも、空の記録を控えにする（消すと、もう一度押して行き来できない。版8）
-        try { localStorage.setItem(BACKUP, JSON.stringify({ at: new Date().toISOString(), d: cur })); } catch (e) {
-          try { replaceAll(cur); } catch (e2) { partial = true; throw e2; }
+        // 先に、戻す前の記録を PREV に書く。書けなければ戻さない（入れ替えも元に戻すのも失敗すると、いまの記録がどこにも残らない。版10）
+        // 前に途中で止まって PREV が残っていれば、それが元の記録のただ1つの写しなので上書きしない（#252 の CodeRabbit）
+        var held = localStorage.getItem(PREV);
+        // 壊れた値（JSON として読めない・形がちがう）は使わない。控えにすると、いまの記録がどこにも残らない（版11）
+        if (held != null && !readKey(PREV)) held = null;
+        var stamp = held != null ? held : JSON.stringify({ at: new Date().toISOString(), d: cur });
+        // 新しい PREV を書く前に、前の止まったときの印（PREVFP）を消す（古い印が残ると、次に止まったとき、そのあとの記録を「変わっていない」と見て控えに残さない。版11）
+        if (held == null) { localStorage.removeItem(PREVFP); localStorage.setItem(PREV, stamp); }
+        var heldB = held != null ? readKey(PREV) : null;
+        var same = function (a, b) { var k = Object.keys(a).sort(); return JSON.stringify(k) === JSON.stringify(Object.keys(b).sort()) && k.every(function (x) { return a[x] === b[x]; }); };
+        var toHeld = !!heldB && same(heldB.d, job.d); // 残っていた PREV（元の記録）へ戻す
+        // 止まったあとに記録が変わっていたら（あとから遊んだ分がある）、戻すときにいまの記録を控えにする（版11）
+        var moved = false;
+        // 印が無い（止まったときに書けなかった）ときは、変わったかわからないので、控え（元の記録のただ1つの写しかもしれない）を上書きしない（版11）
+        if (toHeld) { var was = null; try { was = localStorage.getItem(PREVFP); } catch (e) { /* なし */ } moved = was != null && was !== fp(cur); }
+        // 残った記録とはちがう控え（そのあと取り込んだ記録の控え）へ戻すときも、いまの記録を控えにする（版11）
+        var mine = moved || (heldB && !toHeld) ? JSON.stringify({ at: new Date().toISOString(), d: cur }) : stamp;
+        try { replaceAll(job.d); } catch (e) {
+          partial = e.rolledBack === false;
+          if (!partial && held == null) { try { localStorage.removeItem(PREV); } catch (e2) { /* なし */ } }
+          // 途中で止まったときの記録の印を残す（そのあと記録が変わったら、戻すときにその記録を控えにする。版11）
+          if (partial) { try { localStorage.setItem(PREVFP, fp(snapshot())); } catch (e3) { /* なし */ } }
+          if (partial) swapped = true;
           throw e;
         }
+        swapped = true;
+        if (!toHeld || moved) {
+          // 済んだら、戻す前の記録を控えにする（もう一度押すと戻る）。控えを書けなければ入れ替えを戻す。
+          // 戻すのも失敗したら PREV を残す（readBackup が控えとして出す）。戻す前が空でも、空の記録を控えにする（版8）
+          try { localStorage.setItem(BACKUP, mine); } catch (e) {
+            try { replaceAll(cur); } catch (e2) { partial = true; throw e2; }
+            swapped = false;
+            if (held == null) { try { localStorage.removeItem(PREV); } catch (e3) { /* なし */ } }
+            throw e;
+          }
+        }
+        try { localStorage.removeItem(PREV); localStorage.removeItem(PREVFP); } catch (e) { /* なし */ }
       } else {
         // 先にいまの記録を控えに残す（空なら控えは作らない。前の控えも消さない）。控えを書けなければ入れ替えない
         var prev = localStorage.getItem(BACKUP);
         if (count(cur)) localStorage.setItem(BACKUP, JSON.stringify({ at: new Date().toISOString(), d: cur }));
         try { replaceAll(job.d); } catch (e) {
           // 元に戻せなかったときは、いまの記録の控えを消さない（それが前の記録のただ1つの写し）
-          if (e.rolledBack === false) { partial = true; throw e; }
+          if (e.rolledBack === false) { partial = true; swapped = true; throw e; }
           try { if (prev == null) localStorage.removeItem(BACKUP); else localStorage.setItem(BACKUP, prev); } catch (e2) { /* なし */ }
           throw e;
         }
       }
       msg = job.undo ? "取り込む前の記録に戻しました" : "記録を引き継ぎました";
-      // ほかのタブに入れ替えを知らせる（古いタブが手元の記録で上書きしないよう、読み直させる。版7、2026-11-07 CodeRabbit）
-      try { localStorage.setItem(SYNC, String(Date.now())); } catch (e) { /* なし */ }
+      // ほかのタブへの知らせは、上で進めた番号の storage イベント（古いタブは読み直す。版7）
       undo = !job.undo && count(cur) > 0;
     } catch (e) {
       undo = partial;
+      // 記録が変わらなかったときは、進めた番号を戻す（ほかのタブの保存を捨てさせない。版11）
+      // ほかのタブがそのあと番号を進めていたら、戻さない（戻すと、そのタブの入れ替えの前に開いた古いタブが保存できてしまう。版11）
+      if (!swapped && typeof oldSync !== "undefined" && typeof mySync !== "undefined") { try { if (localStorage.getItem(SYNC) === mySync) { if (oldSync == null) localStorage.removeItem(SYNC); else localStorage.setItem(SYNC, oldSync); } } catch (e4) { /* なし */ } }
       msg = partial ? "途中で止まりました（端末の空きが足りないかもしれません）。「引き継ぎ」の「控えに戻す」で前の記録に戻せます" : "引き継げませんでした（端末の空きが足りないかもしれません）。記録は元のままです";
     }
     // u：知らせに「控えに戻す」を付ける（取り込んだ記録の形でゲームが動かなくても、ここから戻せるように。版4）
@@ -426,7 +534,7 @@
       var ok = false;
       try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
       box.removeChild(t);
-      try { b.focus(); } catch (e) { /* なし */ } // 選ぶために動いた操作の場所を、押したボタンに戻す（版7）
+      if (b.isConnected) { try { b.focus(); } catch (e) { /* なし */ } } // 選ぶために動いた操作の場所を、押したボタンに戻す（版7）。箱を閉じたあとは戻さない（版10）
       if (ok) done(); else { b.textContent = "下のコードを選んでコピーしてください"; setTimeout(function () { b.textContent = "コピー"; }, 4000); }
     }
   }
@@ -481,8 +589,10 @@
       var make = function (plain) {
         var my = ++gen;
         copyBtn.disabled = saveBtn.disabled = plainBtn.disabled = true;
+        d = snapshot(); // 開いたあとに遊んだ分も入れる（版10）
         encode(d, plain).then(function (code) {
           if (my !== gen) return;
+          if (stale()) throw fail("unsaved"); // 縮めているあいだに保存が失敗した（版10）
           out.value = code;
           copyBtn.disabled = saveBtn.disabled = false;
           plainBtn.disabled = /^HK0/.test(code); // もう縮めていない
@@ -491,7 +601,7 @@
           qr.hidden = false; qr.innerHTML = "";
           if (u.length <= QR_MAX) { try { qr.innerHTML = qrSvg(u); } catch (e) { qr.hidden = true; } }
           else { qr.hidden = true; note.textContent = "記録が多いので QR に入りません。コードをコピーするか、ファイルで送ってください。"; }
-        }, function (e) { if (my !== gen) return; note.textContent = e && e.kind === "big" ? "記録が大きすぎて、コードにできません。" : e && e.kind === "unsaved" ? ERR.unsaved : "コードを作れませんでした。"; });
+        }).catch(function (e) { if (my !== gen) return; out.value = ""; qr.hidden = true; note.textContent = e && e.kind === "big" ? "記録が大きすぎて、コードにできません。" : e && e.kind === "unsaved" ? ERR.unsaved : "コードを作れませんでした。"; });
       };
     }
     var getPart = [
@@ -516,7 +626,7 @@
       el("p", { text: cur ? "この端末の今の記録と入れ替えます。今の記録は控えに残すので、あとで「引き継ぎ」から戻せます。" : "この端末にはまだ記録がありません。" }),
       err,
       el("div", { class: "hk-row" }, [
-        btn("入れ替える", function () { if (!commit(r.d)) { err.textContent = "取り込めませんでした（ブラウザの設定で保存が止められているかもしれません）。"; err.hidden = false; } }, true, "hk-yes"),
+        btn("入れ替える", function () { if (stale()) { err.textContent = ERR.unsavedSwap; err.hidden = false; return; } if (!commit(r.d)) { err.textContent = "取り込めませんでした（ブラウザの設定で保存が止められているかもしれません）。"; err.hidden = false; } }, true, "hk-yes"),
         btn("やめる", close, false, "hk-no"),
       ]),
     ], "#hk-no");
@@ -527,7 +637,7 @@
       el("h2", { id: "hk-title", text: "控えに戻しますか？" }),
       el("p", { text: "今の記録と、" + when(new Date(b.at)).replace("に作った", "の控え") + "を入れ替えます。もう一度押せば、また入れ替わります。" }),
       err,
-      el("div", { class: "hk-row" }, [btn("戻す", function () { if (!commit(b.d, true)) { err.textContent = "戻せませんでした（ブラウザの設定で保存が止められているかもしれません）。"; err.hidden = false; } }, true, "hk-yes"), btn("やめる", close, false, "hk-no")]),
+      el("div", { class: "hk-row" }, [btn("戻す", function () { if (stale()) { err.textContent = ERR.unsavedSwap; err.hidden = false; return; } if (!commit(b.d, true)) { err.textContent = "戻せませんでした（ブラウザの設定で保存が止められているかもしれません）。"; err.hidden = false; } }, true, "hk-yes"), btn("やめる", close, false, "hk-no")]),
     ], "#hk-no");
     onClosed = onCancel || null; // やめる・Esc・外を押す、のどれで閉じても
   }
