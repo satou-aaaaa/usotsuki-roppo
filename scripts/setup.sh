@@ -4,7 +4,7 @@
 # Claude Code のクラウドセッションでは .claude/settings.json の SessionStart フックが自動で呼ぶ。
 # CI の Setup check（共通部品）が、まっさらな環境でこれが通るかを確かめる。
 # ひな形: satou-aaaaa/shared-workflows の template/scripts/setup.sh。ゲームはそのまま写せば動く（npm_dir と next だけ、ちがえば書き換える）。
-# ひな形の版: 6（上げたら写しの版も上げる。scripts/drift-check.mjs が古い写しを週次まとめに出す）
+# ひな形の版: 7（上げたら写しの版も上げる。scripts/drift-check.mjs が古い写しを週次まとめに出す）
 #   2: 依存は毎回 npm ci・ブラウザが無ければ止める・このシェルで要る操作（nvm use・export）を最後に出す（shared-workflows incidents/2026-11-03-setup-false-ready.md）
 #   3: nvm.sh を --no-use で読む（.nvmrc の版が入っていないと、読んだだけで何も言わずに止まっていた。incidents/2026-11-04-setup-nvm-silent-stop.md）
 #   4: ブラウザの場所はファイルかも見る（-x だけだとフォルダでも通った。2026-11-05 CodeRabbit が bunshi-tsukuri #1 で指摘）
@@ -13,6 +13,7 @@
 #      合わない版・ダウンロード後の CHROMIUM_PATH を見逃していた）・nvm use の前に nvm.sh を読み込む案内を出す（incidents/2026-11-07-game-template-review-gaps.md）
 #   6: 埋める <> を無くし、そのまま写して動く形にした・Python の節は requirements.txt があるときだけ動く（写し残すと pip で止まっていた）・
 #      NODE_ENV=production でも devDependencies（playwright）を入れる（2026-11-07 kikigaki-techo の Setup check・gogen-suiri #1 の CodeRabbit）
+#   7: package.json に Playwright があるのに読み込めないときは止める（起動の試しを黙って飛ばし「✓」を出していた。2026-11-07 kotowaza-awase #1 の CodeRabbit）
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -79,9 +80,13 @@ else
   fi
 fi
 # 本当に起動できるかを試す（Linux で足りないライブラリ・Playwright と合わないブラウザは、ここまでの検査では分からない。版5）。
-# Playwright が入っていない（検査でブラウザを使わない）リポジトリでは試さない
+# package.json に Playwright を書いていない（検査でブラウザを使わない）リポジトリでは試さない。
+# 書いてあるのに読み込めないときは止める（入れ損ねたまま「✓」を出していた。版7）
 if ! err=$(cd "$npm_dir" && node -e '
-  let pw; for (const m of ["playwright", "playwright-core", "@playwright/test"]) { try { pw = require(m); break; } catch {} }
+  const names = ["playwright", "playwright-core", "@playwright/test"];
+  const pkg = require("./package.json"), want = names.filter((m) => (pkg.dependencies || {})[m] || (pkg.devDependencies || {})[m]);
+  let pw; for (const m of names) { try { pw = require(m); break; } catch {} }
+  if (!pw && want.length) { console.error("package.json に " + want.join("・") + " があるのに読み込めない（npm ci が入れ損ねた。node_modules を消して入れ直す）"); process.exit(1); }
   if (!pw) process.exit(0);
   pw.chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined }).then((b) => b.close(), (e) => { console.error(String(e.message).split("\n").slice(0, 4).join("\n")); process.exit(1); });
 ' 2>&1); then
