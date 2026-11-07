@@ -726,6 +726,50 @@ try {
     check("色だけで分けない検査で画面のエラーが無い", errC.length === 0, errC.join(" / "));
     await c.close();
   }
+  for (const [vw, vh] of [[390, 844], [320, 640]]) { // スマホの画面での使いやすさ（2026-11-07 UI/UX の見直し）
+    const u = await browser.newPage({ viewport: { width: vw, height: vh }, deviceScaleFactor: 1 });
+    const errU = []; u.on("pageerror", (e) => errU.push(e.message));
+    await u.goto(url); await u.evaluate(() => { localStorage.clear(); mem = fresh(); save(); shelf(); });
+    const box = (sel) => u.evaluate((s) => { const el = document.querySelector(s); if (!el) return null; const r = el.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, left: r.left, right: r.right }; }, sel);
+    const over = () => u.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+    const tag = `${vw}×${vh}`;
+    const first = await box('.spine[data-book="min"]');
+    check(`${tag}：はじめての人の「はじめに」の巻（民法）が、最初の画面に丸ごと入る`, first && first.top >= 0 && first.bottom <= vh, JSON.stringify(first));
+    if (vw >= 390) { const e = await box("#go-e"); check(`${tag}：とことんの大きなボタンが最初の画面に入る`, e && e.bottom <= vh, JSON.stringify(e)); }
+    check(`${tag}：本棚で横にはみ出さない`, (await over()) <= 0);
+    const aa = await u.evaluate(() => { const b = document.querySelector("header [data-a11y-open]"), r = b.getBoundingClientRect(); return { pos: getComputedStyle(b).position, top: r.top, floats: document.querySelectorAll(".a11y-float").length }; });
+    check(`${tag}：見やすさの「Aa」は上の欄に置き、画面の下に浮かせない（本文にかぶらない）`, aa.pos !== "fixed" && aa.top < 160 && aa.floats === 0, JSON.stringify(aa));
+    const gaps = await u.evaluate(() => { const r = (s) => document.querySelector(s).getBoundingClientRect(); return [r("#shelf").top - r("#buddy").bottom, r(".mode").top - r("#go-e").bottom, r("#go-e").top - r("#shelf + .hint").bottom]; });
+    check(`${tag}：本棚の部品どうしがくっつかない（間が8px以上）`, gaps.every((g) => g >= 8), gaps.map(Math.round).join(","));
+    await u.click('.spine[data-book="ken"]');
+    check(`${tag}：下読みの画面にも「本棚へもどる」がある`, (await u.locator("#peek").count()) === 1 && (await u.locator("#leave").count()) === 1);
+    await u.click("#flip");
+    const lv = await box("#leave"), pg = await box(".stage"); // .page はめくる動きの途中で形が変わるので外の .stage で測る
+    check(`${tag}：巻の途中でも「本棚へもどる」で戻れる（本の下、44px以上）`, lv && pg && lv.top >= pg.bottom && lv.bottom - lv.top >= 44, JSON.stringify({ lv, pg }));
+    check(`${tag}：本のページで横にはみ出さない`, (await over()) <= 0);
+    await u.evaluate(() => { const p = S.list[S.i]; if (p.lie >= 0) document.querySelector(`.w[data-k="${p.lie}"]`).click(); else document.getElementById("none").click(); });
+    if (await u.locator(".card").count()) await u.locator(".card", { hasText: await u.evaluate(() => S.list[S.i].w[S.list[S.i].lie]) }).first().click();
+    check(`${tag}：答えると、答え合わせ（#res）と次へのボタンが画面の中に出る`, await u.evaluate(() => { const r = document.getElementById("res"), n = document.getElementById("next"); return !!r && !!n && n.getBoundingClientRect().bottom <= innerHeight + scrollY; }));
+    await u.click("#leave");
+    check(`${tag}：「本棚へもどる」を押すと本棚に戻り、直したページは残る`, (await u.locator(".spine").count()) === 6 && await u.evaluate(() => S === null && Object.keys(mem.solved).length === 1));
+    // 巻の終わりは上から見せる（下のほうで最後のページを閉じても、巻の名前から出る）
+    await u.click('.spine[data-book="ken"]');
+    while ((await u.locator("#fin").count()) === 0) {
+      if (await u.locator("#flip").count()) { await u.click("#flip"); continue; }
+      const l = await u.evaluate(() => S.list[S.i].lie);
+      await u.click(l < 0 ? "#none" : `button.w:not([data-k="${l}"])`);
+      await u.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      await u.click("#next");
+    }
+    check(`${tag}：巻の終わりの画面は、いちばん上（巻の名前）から出る`, await u.evaluate(() => scrollY === 0 && document.querySelector("#fin h2").getBoundingClientRect().top >= 0));
+    check(`${tag}：巻の終わりで横にはみ出さない`, (await over()) <= 0);
+    await u.click("#go-e");
+    const eh = await box("#ehint"), ep = await box(".stage");
+    check(`${tag}：とことんの説明が本に重ならない`, eh && ep && eh.top >= ep.bottom + 4, JSON.stringify({ eh, ep }));
+    check(`${tag}：とことんでは「本棚へもどる」でなく「ここで降りる」だけを出す`, (await u.locator("#leave").count()) === 0 && (await u.locator("#quit").count()) === 1);
+    check(`${tag}：使いやすさの検査で画面のエラーが無い`, errU.length === 0, errU.join(" / "));
+    await u.close();
+  }
   try { // 引き継ぎコード（別の端末へ記録を移す。shared-workflows template/qa/transfer-check.mjs）
     const rec = { solved: { "ken-1": 1 }, days: { "2026-11-01": 6 }, kanpu: {}, ach: {} };
     await checkTransfer({ browser, url, game: "usotsuki-roppo", sample: { "roppo-seal-v1": JSON.stringify(rec) }, check });
