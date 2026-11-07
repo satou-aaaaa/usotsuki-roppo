@@ -25,7 +25,7 @@ jobs:
       # 同じコミットで ✅ が要る検査（改行区切り）。Secret scan を入れたリポジトリは QA の check 名（qa.yml の job の name）と "scan / scan"
       # きっかけが Secret scan のとき recheck_main は secret-scan.yml を起こそうとするので、false にして dispatch に qa.yml を足す
       require_checks: |
-        qa
+        qa / qa
         scan / scan
       # 条文・画面の仕組みを変える PR は自動ではマージせず、CodeRabbit のレビューを読んでから手でマージ（AGENTS.md。2026-11-01 #9）
       hold_paths: '^(index\.html|sw\.js|manifest\.webmanifest)$'

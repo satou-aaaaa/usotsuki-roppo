@@ -1,11 +1,13 @@
 name: QA
 
-# 見本の話と遊び方を、ブラウザで自動で遊んで確かめる（Claude は使わない）。
+# ゲームの QA：ブラウザで自動で遊んで確かめる（Claude は使わない）。中身は共通部品 satou-aaaaa/shared-workflows の game-qa.yml。
+# 検査の名前は「qa / qa」（Auto merge の require_checks と main のルールセットの必須チェック。ジョブ名 qa を変えない）。
 # 落ちたら qa-report/report.md を見る。手元では node qa/run.mjs で同じものが回る。
 on:
   pull_request:
   push:
     branches: [main]
+  # 公開後の確認（Post-deploy check）の差し戻しの PR で、検査を起こすのに使う（GITHUB_TOKEN の PR では pull_request が動かない）
   workflow_dispatch:
 
 permissions:
@@ -17,26 +19,7 @@ concurrency:
 
 jobs:
   qa:
-    name: qa
-    runs-on: ubuntu-latest
-    timeout-minutes: 20  # Playwright を入れる段階だけで9分かかる日がある（shared-workflows incidents/2026-11-05-qa-timeout-slow-install.md）
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-          cache-dependency-path: qa/package-lock.json
-      - run: npm ci --no-audit --no-fund
-        working-directory: qa
-      - run: npx playwright install --with-deps chromium
-        working-directory: qa
-      - run: node qa/run.mjs
-      - if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: qa-report
-          path: qa-report/
-          if-no-files-found: ignore
+    uses: satou-aaaaa/shared-workflows/.github/workflows/game-qa.yml@main
+    # with:
+    #   npm_dir: qa              # package-lock.json のあるフォルダ
+    #   command: node qa/run.mjs

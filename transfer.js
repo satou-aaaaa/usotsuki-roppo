@@ -1,5 +1,5 @@
 // 引き継ぎコード（transfer.js）：このゲームの記録を「コード」と「QR」にして、別の端末へ移す。サーバーは使わない。
-// 引き継ぎの版: 6
+// 引き継ぎの版: 8
 // 正：satou-aaaaa/shared-workflows の template/transfer.js（各ゲームはこれをそのまま写す。直すときはひな形を直して配り、版を上げる）
 // 使い方（index.html の <head> の中、ゲームの script より前に、defer を付けずに置く）:
 //   <script src="transfer.js" data-game="kippu-10" data-keys="kippu-v1"></script>
@@ -15,6 +15,13 @@
 //     入れ替える前の記録は控え（hk-backup:<ゲーム>）に残し、「取り込む前に戻す」で戻せる（戻すのも入れ替えなので、もう一度押せばまた戻る）。
 //     ゲームが記録を読む前に入れ替えたいので、sessionStorage に預けてページを読み直し、この script の最初で書き込む。
 //   - 外へ通信しない（fetch・XMLHttpRequest・外のスクリプトを使わない）。QR は下の qrcode-generator（MIT）をこのファイルの中で作る。
+//   - 版7（2026-11-07 CodeRabbit。shared-workflows incidents/2026-11-07-game-template-review-gaps.md）:
+//     記録の保存（localStorage.setItem）に失敗したままのキーがあると、古い記録のコードを作らず知らせる・
+//     とても長い貼りつけは、CRC や広げる前に弾く・縮めないコード（HK0）も選べる（広げられない古いブラウザへ送るとき）・
+//     コピーの代わりの道（execCommand）のあと、押したボタンに戻る・コードの途中の空白も読む・
+//     入れ替えたら同じゲームのほかのタブを読み直させる（古いタブの手元の記録で上書きしない）。
+//   - 版8（2026-11-07 CodeRabbit。gogen-suiri #1・mukashi-narabe #1）: 縮めないコード（HK0）は、base64 を戻す前に長さで弾く・
+//     控えに戻したとき、戻す前が空でも「空の記録」を控えに残す（もう一度押せば空に戻せる。前は控えごと消えて行き来できなかった）。
 (function () {
   "use strict";
   var VERSION = 4; // コードの形の版（形を変えたときだけ上げる。上の「引き継ぎの版」とは別）
@@ -25,7 +32,9 @@
   var BACKUP = "hk-backup:" + GAME;
   var PENDING = "hk-pending:" + GAME;
   var DONE = "hk-done:" + GAME;
+  var SYNC = "hk-sync:" + GAME; // 入れ替えたことをほかのタブへ知らせる印（記録には入れない）
   var MAX_JSON = 4 * 1024 * 1024; // localStorage はおおよそ 5MB まで
+  var MAX_CODE = MAX_JSON * 2; // 貼りつけの長さの上限（HK0 の base64 でも MAX_JSON の 4/3 倍。URL・改行の分を足しても収まる）
   var QR_MAX = 2300; // QR（誤り訂正 L・40型）に入る URL の長さのめやす
   // 全部のゲームで分け合うキー（見やすさの設定）。入れると、取り込んだときにほかのゲームの設定まで変わる
   var SHARED = ["a11y-v1"];
@@ -50,6 +59,24 @@
     return d;
   }
   function count(d) { return Object.keys(d).length; }
+  // 保存に失敗したままの記録のキー（この画面を開いているあいだだけ。読み直すとゲームの手元の記録も消えるので、それでよい）。
+  // 失敗したあとは、ゲームの手元の記録だけが新しく、localStorage は古い。そのまま書き出すと古い記録が送られる（版7）
+  var unsaved = {};
+  function isLocal(s) { try { return s === localStorage; } catch (e) { return false; } }
+  function watchSaves() {
+    try {
+      if (typeof Storage !== "function" || !Storage.prototype.setItem) return;
+      var orig = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (k, v) {
+        try { orig.call(this, k, v); } catch (e) {
+          if (isLocal(this) && ours(String(k))) unsaved[String(k)] = 1;
+          throw e; // ゲームには今までどおり失敗を返す
+        }
+        if (isLocal(this)) delete unsaved[String(k)];
+      };
+    } catch (e) { /* 見張れないときは今までどおり */ }
+  }
+  function stale() { return Object.keys(unsaved).length > 0; }
   // d に入れ替える。失敗したら元に戻す
   function replaceAll(d) {
     var old = snapshot();
@@ -95,14 +122,15 @@
   function pipe(bytes, stream) {
     return new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer().then(function (b) { return new Uint8Array(b); });
   }
-  function encode(d) {
+  function encode(d, plain) {
+    if (stale()) return Promise.reject(fail("unsaved"));
     if (!count(d)) return Promise.reject(fail("empty")); // 記録が無いコードは、受け取る側で必ず弾かれるので作らない
     var json = JSON.stringify({ g: GAME, v: VERSION, at: new Date().toISOString(), d: d });
     var raw = new TextEncoder().encode(json);
     // 受け取る側が弾く大きさのコードは作らない（書き出しは成功したのに取り込めない、をなくす）
     if (raw.length > MAX_JSON) return Promise.reject(fail("big"));
     var z;
-    try { z = new CompressionStream("deflate-raw"); } catch (e) { z = null; }
+    try { z = plain ? null : new CompressionStream("deflate-raw"); } catch (e) { z = null; } // plain：縮めない HK0（版7）
     var p = z ? pipe(raw, z).catch(function () { return null; }) : Promise.resolve(null); // 縮められなければ HK0
     return p.then(function (bytes) {
       var mode = bytes ? "1" : "0";
@@ -114,14 +142,16 @@
   function clean(text) {
     var s = String(text || "");
     // URL の途中で改行されていても（改行のあとの字下げも）、コードに使う文字が続くあいだは1つのコードとして取る
-    var m = s.match(/[#&]hk=([A-Za-z0-9_.%-]+(?:[ \t]*[\r\n]+[ \t]*[A-Za-z0-9_.%-]+)*)/);
+    // 行の中の空白で切れていても（メールやチャットの折り返し）、つなげて CRC が合うところを使う（版7）
+    var m = s.match(/[#&]hk=([A-Za-z0-9_.%-]+(?:\s+[A-Za-z0-9_.%-]+)*)/);
     var src = m ? m[1] : s;
     var un = function (x) { if (!m) return x; try { return decodeURIComponent(x); } catch (e) { return x; } };
     // 行をつなぐと、コードのあとの行（「  Note: keep」など）の字まで入ることがある。
     // 長いほうから順に、終わりの3行までを外して CRC が合うところを使う（合わなければ全部つないで、写しまちがいとして知らせる。
     // 外すのを3行までにするのは、とても長いコードで CRC を何度も計り直さないため。版6）
-    var lines = src.split(/[\r\n]+/);
-    for (var k = lines.length; k >= 1 && k >= lines.length - 3; k--) {
+    // 区切りは改行と空白（版7。前は改行だけ）。外すのは終わりの8つまで
+    var lines = src.split(/\s+/).filter(Boolean);
+    for (var k = lines.length; k >= 1 && k >= lines.length - 8; k--) {
       var c = un(lines.slice(0, k).join("")).replace(/\s+/g, "");
       if (whole(c)) return c;
     }
@@ -129,6 +159,7 @@
   }
   // 形と CRC が合う、ひとそろいのコードか
   function whole(c) {
+    if (c.length > MAX_CODE) return false; // 長すぎるものは CRC を計らない（版7）
     var m = c.match(/^HK([01])\.([A-Za-z0-9_-]+)\.([0-9a-z]{1,7})$/);
     if (!m) return false;
     try { return crc32(unb64(m[2])) === m[3]; } catch (e) { return false; }
@@ -143,6 +174,7 @@
     big: "記録が大きすぎます。",
     empty: "まだ記録がありません。",
     newer: "新しい版の引き継ぎコードです。ページを読み直して（アプリを開き直して）から試してください。",
+    unsaved: "この端末で、最新の記録を保存できていません（空きが足りないかもしれません）。このままでは古い記録を送ってしまうので、コードを作りません。端末の空きを作ってから、もう一度遊んで保存してください。",
   };
   // 記録の中の文字に、HTML の印になる文字が無いか（JSON ならキーと文字の値を全部見る）
   var HTMLCH = /[<>"'`]/;
@@ -185,10 +217,14 @@
   }
   function decode(text) {
     return Promise.resolve().then(function () {
+      // 貼られたままの長さを先に見る（とても長い文字で、CRC・広げる・行のつなぎ直しを何度も回してタブを固めない。版7）
+      if (String(text || "").length > MAX_CODE) throw fail("big");
       var s = clean(text);
       if (s.length > MAX_JSON * 2) throw fail("big");
       var m = s.match(/^HK([01])\.([A-Za-z0-9_-]+)\.([0-9a-z]{1,7})$/);
       if (!m) throw fail("form");
+      // HK0 は中身がそのまま base64。戻す前に、戻した大きさ（4 文字で 3 バイト）が MAX_JSON を超えないかを見る（版8）
+      if (m[1] === "0" && Math.floor(m[2].length * 3 / 4) > MAX_JSON) throw fail("big");
       var bytes;
       try { bytes = unb64(m[2]); } catch (e) { throw fail("form"); }
       if (crc32(bytes) !== m[3]) throw fail("crc");
@@ -231,7 +267,8 @@
         // 控えに戻す：控え（job.d と同じ中身）は入れ替えが済むまで上書きしない。途中で止まっても、もう一度「控えに戻す」で戻せる（版5）
         try { replaceAll(job.d); } catch (e) { partial = e.rolledBack === false; throw e; }
         // 済んだら、戻す前の記録を控えにする（もう一度押すと戻る）。控えを書けなければ、戻す前の記録の写しが無くなるので入れ替えを戻す
-        try { if (count(cur)) localStorage.setItem(BACKUP, JSON.stringify({ at: new Date().toISOString(), d: cur })); else localStorage.removeItem(BACKUP); } catch (e) {
+        // 戻す前が空でも、空の記録を控えにする（消すと、もう一度押して行き来できない。版8）
+        try { localStorage.setItem(BACKUP, JSON.stringify({ at: new Date().toISOString(), d: cur })); } catch (e) {
           try { replaceAll(cur); } catch (e2) { partial = true; throw e2; }
           throw e;
         }
@@ -247,6 +284,8 @@
         }
       }
       msg = job.undo ? "取り込む前の記録に戻しました" : "記録を引き継ぎました";
+      // ほかのタブに入れ替えを知らせる（古いタブが手元の記録で上書きしないよう、読み直させる。版7、2026-11-07 CodeRabbit）
+      try { localStorage.setItem(SYNC, String(Date.now())); } catch (e) { /* なし */ }
       undo = !job.undo && count(cur) > 0;
     } catch (e) {
       undo = partial;
@@ -255,6 +294,7 @@
     // u：知らせに「控えに戻す」を付ける（取り込んだ記録の形でゲームが動かなくても、ここから戻せるように。版4）
     try { sessionStorage.setItem(DONE, JSON.stringify({ m: msg, u: undo })); } catch (e) { /* なし */ }
   })();
+  watchSaves(); // 入れ替え（上）の書き込みは数えない。ここから先のゲームの保存を見張る
 
   // ---- 画面 ----
   var CSS = [
@@ -383,6 +423,7 @@
       var ok = false;
       try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
       box.removeChild(t);
+      try { b.focus(); } catch (e) { /* なし */ } // 選ぶために動いた操作の場所を、押したボタンに戻す（版7）
       if (ok) done(); else { b.textContent = "下のコードを選んでコピーしてください"; setTimeout(function () { b.textContent = "コピー"; }, 4000); }
     }
   }
@@ -421,22 +462,34 @@
       decode(paste.value).then(function (r) { if (my === req) confirmImport(r); }, function (e) { if (my !== req) return; err.textContent = e.kind ? e.message : ERR.form; err.hidden = false; });
     }
     var sendPart = [el("h3", { text: "この端末の記録を送る" })];
-    if (!count(d)) sendPart.push(el("p", { text: "まだ記録がありません。" }));
+    if (stale()) sendPart.push(el("p", { class: "hk-err", role: "alert", id: "hk-stale", text: ERR.unsaved }));
+    else if (!count(d)) sendPart.push(el("p", { text: "まだ記録がありません。" }));
     else {
       var qr = el("div", { class: "hk-qr", id: "hk-qr" });
       var out = el("textarea", { id: "hk-code", readonly: "", "aria-label": "引き継ぎコード" });
       var note = el("p", { text: "新しい端末のカメラで QR を読むと、このゲームが開いて取り込めます。" });
       var copyBtn = btn("コピー", function () { copy(url(out.value), copyBtn); });
       var saveBtn = btn("ファイルに保存", function () { save(out.value); });
-      copyBtn.disabled = saveBtn.disabled = true;
-      sendPart.push(qr, note, out, el("div", { class: "hk-row" }, [copyBtn, saveBtn]));
-      encode(d).then(function (code) {
-        out.value = code;
-        copyBtn.disabled = saveBtn.disabled = false;
-        var u = url(code);
-        if (u.length <= QR_MAX) { try { qr.innerHTML = qrSvg(u); } catch (e) { qr.hidden = true; } }
-        else { qr.hidden = true; note.textContent = "記録が多いので QR に入りません。コードをコピーするか、ファイルで送ってください。"; }
-      }, function (e) { note.textContent = e && e.kind === "big" ? "記録が大きすぎて、コードにできません。" : "コードを作れませんでした。"; });
+      // 受け取る端末のブラウザが古く「読めない」と出たときに、縮めないコード（HK0）を作り直す（版7）
+      var plainBtn = btn("古いブラウザ向けに作り直す", function () { make(true); }, false, "hk-plain");
+      var plainNote = el("p", { text: "受け取る側で「このブラウザでは読めない」と出たら、下のボタンで作り直してください（コードが長くなります）。" });
+      sendPart.push(qr, note, out, el("div", { class: "hk-row" }, [copyBtn, saveBtn]), plainNote, el("div", { class: "hk-row" }, [plainBtn]));
+      var gen = 0; // 作り直しを続けて押したときは、後のほうだけを出す
+      var make = function (plain) {
+        var my = ++gen;
+        copyBtn.disabled = saveBtn.disabled = plainBtn.disabled = true;
+        encode(d, plain).then(function (code) {
+          if (my !== gen) return;
+          out.value = code;
+          copyBtn.disabled = saveBtn.disabled = false;
+          plainBtn.disabled = /^HK0/.test(code); // もう縮めていない
+          if (plain) { plainNote.textContent = "縮めないコードにしました。"; }
+          var u = url(code);
+          qr.hidden = false; qr.innerHTML = "";
+          if (u.length <= QR_MAX) { try { qr.innerHTML = qrSvg(u); } catch (e) { qr.hidden = true; } }
+          else { qr.hidden = true; note.textContent = "記録が多いので QR に入りません。コードをコピーするか、ファイルで送ってください。"; }
+        }, function (e) { if (my !== gen) return; note.textContent = e && e.kind === "big" ? "記録が大きすぎて、コードにできません。" : e && e.kind === "unsaved" ? ERR.unsaved : "コードを作れませんでした。"; });
+      };
     }
     var getPart = [
       el("h3", { text: "記録を受け取る" }),
@@ -445,10 +498,11 @@
       el("div", { class: "hk-row" }, [btn("取り込む", tryImport, true, "hk-go"), el("label", { class: "hk-file" }, [document.createTextNode("ファイルを開く"), fileIn])]),
     ];
     var b = readBackup();
-    var undoPart = b ? [el("h3", { text: "取り込む前に戻す" }), el("p", { text: when(new Date(b.at)).replace("に作った", "の控え") + "があります。" }),
+    var undoPart = b ? [el("h3", { text: "取り込む前に戻す" }), el("p", { text: when(new Date(b.at)).replace("に作った", "の控え") + (count(b.d) ? "があります。" : "（記録が無い状態）があります。") }),
       el("div", { class: "hk-row" }, [btn("控えに戻す", function () { confirmUndo(b); }, false, "hk-undo")])] : [];
     show([el("h2", { id: "hk-title", text: "引き継ぎ" })].concat(sendPart, getPart, undoPart, [el("div", { class: "hk-row" }, [btn("閉じる", close, false, "hk-close")])]),
       count(d) ? "#hk-close" : "#hk-in");
+    if (make) make(false);
   }
   function confirmImport(r) {
     var cur = count(snapshot());
@@ -491,6 +545,8 @@
     }
     checkHash();
     window.addEventListener("hashchange", checkHash);
+    // 別のタブで記録を入れ替えたら、このタブも読み直す（手元に残った古い記録で、取り込んだ記録を上書きしない。版7）
+    window.addEventListener("storage", function (e) { if (e.key === SYNC && e.newValue) location.reload(); });
   }
   // QR の URL（#hk=コード）で開かれたら、取り込みの確認を出す（開いている画面で URL が変わったときも）
   function checkHash() {
@@ -2136,7 +2192,7 @@ var qrcode = function() {
 }();
   // ---- ここまで qrcode-generator ----
 
-  window.HK = { open: open, encode: function () { return encode(snapshot()); }, decode: decode, version: VERSION };
+  window.HK = { open: open, encode: function (plain) { return encode(snapshot(), plain); }, decode: decode, version: VERSION };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
 
