@@ -288,7 +288,13 @@ for (const sc of screens) {
   await page.reload(); await page.waitForTimeout(300);
   let odd = await page.evaluate(() => !!window.A11y && !!document.querySelector("[data-a11y-open]"));
   // ボタンがあるだけでなく、押すとダイアログが開くか（2026-11-07 mukashi-narabe #1 の CodeRabbit）
-  if (odd) { await dismiss(page); await page.click("[data-a11y-open]"); odd = await page.waitForSelector("dialog.a11y-dlg[open]", { timeout: 2000 }).then(() => true, () => false); }
+  // 押せない（隠れている・時間切れ）ときも、例外で止めずに ✗ と数える（2026-11-07 amida-haitatsu #14 の CodeRabbit）
+  if (odd) {
+    await dismiss(page);
+    odd = await page.click("[data-a11y-open]", { timeout: 3000 })
+      .then(() => page.waitForSelector("dialog.a11y-dlg[open]", { timeout: 2000 }))
+      .then(() => true, () => false);
+  }
   check("保存した見やすさの設定が壊れていても（true など）、設定を開ける", odd);
   await ctx.close();
 }

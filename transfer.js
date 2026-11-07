@@ -1,5 +1,5 @@
 // 引き継ぎコード（transfer.js）：このゲームの記録を「コード」と「QR」にして、別の端末へ移す。サーバーは使わない。
-// 引き継ぎの版: 8
+// 引き継ぎの版: 9
 // 正：satou-aaaaa/shared-workflows の template/transfer.js（各ゲームはこれをそのまま写す。直すときはひな形を直して配り、版を上げる）
 // 使い方（index.html の <head> の中、ゲームの script より前に、defer を付けずに置く）:
 //   <script src="transfer.js" data-game="kippu-10" data-keys="kippu-v1"></script>
@@ -22,6 +22,7 @@
 //     入れ替えたら同じゲームのほかのタブを読み直させる（古いタブの手元の記録で上書きしない）。
 //   - 版8（2026-11-07 CodeRabbit。gogen-suiri #1・mukashi-narabe #1）: 縮めないコード（HK0）は、base64 を戻す前に長さで弾く・
 //     控えに戻したとき、戻す前が空でも「空の記録」を控えに残す（もう一度押せば空に戻せる。前は控えごと消えて行き来できなかった）。
+//   - 版9（2026-11-07 CodeRabbit。sagi-minuki #2・tenkizu-yomi #25）: 行が分かれたコードを試すとき（whole）も、HK0 は戻す前に長さで弾く。
 (function () {
   "use strict";
   var VERSION = 4; // コードの形の版（形を変えたときだけ上げる。上の「引き継ぎの版」とは別）
@@ -162,6 +163,8 @@
     if (c.length > MAX_CODE) return false; // 長すぎるものは CRC を計らない（版7）
     var m = c.match(/^HK([01])\.([A-Za-z0-9_-]+)\.([0-9a-z]{1,7})$/);
     if (!m) return false;
+    // HK0 は戻す前に、戻した大きさが MAX_JSON を超えないかを見る（分けて貼られると最大9回戻すため。版9）
+    if (m[1] === "0" && Math.floor(m[2].length * 3 / 4) > MAX_JSON) return false;
     try { return crc32(unb64(m[2])) === m[3]; } catch (e) { return false; }
   }
   var ERR = {
