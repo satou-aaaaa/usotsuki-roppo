@@ -50,6 +50,14 @@ body.dawn .moon{background:radial-gradient(circle at 50% 50%,#fff3c4,#ffc35a 70%
 header{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap;padding-right:64px}
 h1{font-family:var(--display);font-size:clamp(28px,8vw,40px);margin:0;line-height:1.1;letter-spacing:.06em;color:var(--lamp);
   text-shadow:0 0 18px #ffbf4f55}
+/* 見やすさの「Aa」は上の欄に置く（左下に浮かせると本棚の説明・本文の下の行にかぶった。2026-11-07） */
+.hstat{display:flex;align-items:center;gap:10px}
+.hdr-a11y{background:#ffffff14!important;color:var(--lamp)!important;border-color:#e7b04f99!important}
+/* 画面の部品どうしの間をあける（本棚の部品・とことんの説明が本にくっついていた。2026-11-07） */
+#view{display:grid;gap:12px}
+/* 幅の狭いスマホでは相棒の欄を小さくし、本棚と説明を最初の画面に入れる */
+@media (max-width:360px){.buddy{padding:8px 12px;gap:10px}.buddy .buddy-svg{width:46px;height:60px}.buddy b{font-size:15px}.prolog{font-size:13px}}
+.btn.leave{justify-self:center;font-size:13px;font-weight:500;padding:6px 18px;min-height:44px;box-sizing:border-box;display:inline-flex;align-items:center}
 .sub{margin:2px 0 0;font-size:13px;opacity:.85;letter-spacing:.1em}
 .stat{font-size:13px;opacity:.9;font-variant-numeric:tabular-nums}
 .stat b{font-family:var(--display);font-size:20px;color:var(--lamp)}
@@ -375,8 +383,7 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
       <h1>うそつき六法</h1>
       <p class="sub">封じの六法</p>
     </div>
-    <div class="stat" id="stat"></div>
-    <button type="button" class="a11y-btn a11y-float" data-a11y-open aria-label="見やすさの設定">Aa</button>
+    <div class="hstat"><div class="stat" id="stat"></div><button type="button" class="a11y-btn hdr-a11y" data-a11y-open aria-label="見やすさの設定">Aa</button></div>
   </header>
 
   <main id="view"></main>
@@ -660,7 +667,7 @@ function techFor(b) { const xs = learned(); return xs.includes(ARTS[b.id]) ? ART
 
 // 本棚
 function shelf() {
-  S = null; frame();
+  S = null; frame(); window.scrollTo(0, 0);
   const done = allDone();
   let h = done ? '<div class="panel" id="dawn"><h2>夜明け！</h2><p>六法をすべて取り戻した。村じゅうに灯りがともった。</p></div>'
     : '<p class="prolog">夜のうちに、ねじれ文字が六法の言葉をうそに書き換えた。うその言葉を見つけ、正しい札で封じよう。</p>';
@@ -673,7 +680,7 @@ function shelf() {
     return `<button class="spine${full ? " done" : ""}" data-book="${b.id}" style="--c:${b.c};height:${170 + (i % 3) * 14}px" aria-label="${b.name}の巻（${n}/${b.pages.length}${kan ? "・完封" : ""}${first ? "・はじめはここから" : ""}）">` + (first ? '<span class="first" aria-hidden="true">はじめに</span>' : "") +
       `<span class="band"></span><span class="t">${b.name}</span><span class="band"></span><span class="n">${n}/${b.pages.length}</span>${kan ? '<span class="kan" aria-hidden="true">完</span>' : ""}</button>`;
   }).join("") + "</div>";
-  h += `<p class="hint">本をタップして開く。どの巻からでもよい。1回に6ページずつ読む。</p>${endBtn(false)}<div class="mode"><button class="btn sub2" id="easy" aria-pressed="${easy()}">${easy() ? "📖 下読みあり" : "⚔️ 下読みなし"}</button><p class="hint" id="easyhint">${easy() ? "先に正しい条文を読んでから、うそを探す" : "いきなりうそを探す（完封はこちら）"}</p></div><div class="row"><button class="btn sub2" id="cho">封じ帳</button><button class="btn sub2" id="achbtn">実績</button><button class="btn sub2" id="calbtn">カレンダー</button><button class="btn sub2" id="a11ybtn" data-a11y-open>見やすさ</button></div>`;
+  h += `<p class="hint">本をタップして開く。どの巻からでもよい。1回に6ページずつ読む。</p>${endBtn(false)}<div class="mode"><button class="btn sub2" id="easy" aria-pressed="${easy()}">${easy() ? "📖 下読みあり" : "⚔️ 下読みなし"}</button><p class="hint" id="easyhint">${easy() ? "先に正しい条文を読んでから、うそを探す" : "いきなりうそを探す（完封はこちら）"}</p></div><div class="row"><button class="btn sub2" id="cho">封じ帳</button><button class="btn sub2" id="achbtn">実績</button><button class="btn sub2" id="calbtn">カレンダー</button></div>`;
   view().innerHTML = h;
   view().querySelectorAll(".spine").forEach((x) => x.addEventListener("click", () => openBook(x.dataset.book)));
   $("cho").addEventListener("click", cho);
@@ -726,7 +733,7 @@ function words(p) {
 }
 
 function render(turn) {
-  frame();
+  frame(); if (turn) window.scrollTo(0, 0);
   if (S.mode === "e") S.b = S.list[S.i].book;
   // 下読みの間は巻末の枠を付けない（枠でうそがあると分かってしまう）
   const p = S.list[S.i], st = S.st, boss = p === bossOf(S.b) && !(!st && S.peek), er = S.mode === "e" ? mem.erun : null;
@@ -738,8 +745,9 @@ function render(turn) {
     h += '<p class="peek-tag" id="peek">📖 下読み：これが正しい条文</p>' +
       `<div class="text done clean" tabindex="-1" data-a11y-say>${p.w.map((x) => `<span class="w">${x}</span>`).join("")}</div>` +
       '<p class="q" data-a11y-say>しおり「覚えたら、めくってね。ねじれ文字が1か所を書き換えるかも」</p>' +
-      '<button class="btn go" id="flip">めくる</button></article></div>';
+      '<button class="btn go" id="flip">めくる</button></article></div><button class="btn sub2 leave" id="leave">本棚へもどる</button>';
     view().innerHTML = h;
+    $("leave").addEventListener("click", shelf);
     const fl = $("flip"); const ptx = view().querySelector(".text"); (turn && ptx ? ptx : fl).focus({ preventScroll: true }); fl.addEventListener("click", () => { S.peek = false; render(true); });
     return;
   }
@@ -766,6 +774,7 @@ function render(turn) {
   }
   h += "</article></div>";
   if (er) h += `<p class="hint" id="ehint">まちがえても続く。好きなところで降りられる。</p><button class="btn sub2 wide" id="quit">ここで降りる（${answered(er)}ページで終える）</button>`;
+  else h += '<button class="btn sub2 leave" id="leave">本棚へもどる</button>'; // 巻の途中でも本棚へ戻れる（直したページはもう記録してある）
   view().innerHTML = h;
   view().querySelectorAll(".text:not(.done) button.w").forEach((x) => x.addEventListener("click", () => pick(+x.dataset.k)));
   view().querySelectorAll(".card").forEach((x) => x.addEventListener("click", () => fit(x.textContent)));
@@ -778,6 +787,7 @@ function render(turn) {
   if (!st && turn) { const tx = view().querySelector(".text"); if (tx) tx.focus({ preventScroll: true }); }
   if (st && st.done) tell(S.said); else if (st && st.choose) tell("ねじれ文字が姿を現した。正しい札を選ぶ。"); else if (S.marked.length && S.hinted && S.hint === 0 && !S.toldHint) { S.toldHint = true; tell(`しおり：✓ の付いた言葉 ${S.marked.length}つは正しい。`); }
   const qt = $("quit"); if (qt) qt.addEventListener("click", () => endFin());
+  const lv = $("leave"); if (lv) lv.addEventListener("click", shelf);
 }
 
 function pick(k) {
@@ -822,7 +832,7 @@ function next() {
 function ask(id) { return `<p class="ask" id="${id}">楽しめたら、<a href="https://ko-fi.com/satouaaaaa" target="_blank" rel="noopener noreferrer">Ko-fi でコーヒー1杯の応援</a>をもらえると、新しい巻づくりの励みになります（任意・遊ぶのはずっと無料）。</p>`; }
 function fin() {
   try { merge(); } catch (e) { /* 読めなくても続ける */ }
-  frame();
+  frame(); window.scrollTo(0, 0); // 巻の終わりは上（巻の名前）から見せる（下のほうで「本を閉じる」を押すと、途中から出ていた）
   const b = S.b, n = solvedIn(b), full = n === b.pages.length, lost = S.lost.slice();
   const slot = (p, out) => p.lie < 0 ? "" : `<div class="slot${out ? " out" : ""}">${monster(p, false)}<span class="nm">${p.bad}</span><span>${out ? "逃げた" : "封じた"}</span></div>`;
   const mons = S.got.map((p) => slot(p, false)).join("") + S.lost.map((p) => slot(p, true)).join("");
