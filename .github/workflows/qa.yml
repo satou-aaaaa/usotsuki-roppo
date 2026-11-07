@@ -13,9 +13,11 @@ on:
 permissions:
   contents: read
 
+# PR の古い実行だけ止める。main の実行は止めない（続けてマージしたとき、先のコミットの失敗が Issue にならないのを防ぐ。2026-11-07 CodeRabbit）
 concurrency:
-  group: qa-${{ github.ref }}
-  cancel-in-progress: true
+  # main は実行ごとに別のグループにする（同じグループだと、待っている main の実行が後の実行に取り消される。2026-11-07 atsusa-shisu #1・chikei-ate #2 の CodeRabbit）
+  group: qa-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   qa:

@@ -4,7 +4,7 @@
 # Claude Code のクラウドセッションでは .claude/settings.json の SessionStart フックが自動で呼ぶ。
 # CI の Setup check（共通部品）が、まっさらな環境でこれが通るかを確かめる。
 # ひな形: satou-aaaaa/shared-workflows の template/scripts/setup.sh。ゲームはそのまま写せば動く（npm_dir と next だけ、ちがえば書き換える）。
-# ひな形の版: 7（上げたら写しの版も上げる。scripts/drift-check.mjs が古い写しを週次まとめに出す）
+# ひな形の版: 11（上げたら写しの版も上げる。scripts/drift-check.mjs が古い写しを週次まとめに出す）
 #   2: 依存は毎回 npm ci・ブラウザが無ければ止める・このシェルで要る操作（nvm use・export）を最後に出す（shared-workflows incidents/2026-11-03-setup-false-ready.md）
 #   3: nvm.sh を --no-use で読む（.nvmrc の版が入っていないと、読んだだけで何も言わずに止まっていた。incidents/2026-11-04-setup-nvm-silent-stop.md）
 #   4: ブラウザの場所はファイルかも見る（-x だけだとフォルダでも通った。2026-11-05 CodeRabbit が bunshi-tsukuri #1 で指摘）
@@ -14,6 +14,12 @@
 #   6: 埋める <> を無くし、そのまま写して動く形にした・Python の節は requirements.txt があるときだけ動く（写し残すと pip で止まっていた）・
 #      NODE_ENV=production でも devDependencies（playwright）を入れる（2026-11-07 kikigaki-techo の Setup check・gogen-suiri #1 の CodeRabbit）
 #   7: package.json に Playwright があるのに読み込めないときは止める（起動の試しを黙って飛ばし「✓」を出していた。2026-11-07 kotowaza-awase #1 の CodeRabbit）
+#   8: 相対パスの CHROMIUM_PATH を絶対パスにしてから使う（起動の試しは npm_dir に移って動くので、相対だと別の場所を指していた。2026-11-07 dema-tashikame #1 の CodeRabbit）
+#   9: 絶対パスにした CHROMIUM_PATH を以後のコマンド（QA）にも渡す（親のシェルには相対のまま残っていた。2026-11-07 dema-tashikame #1 の CodeRabbit）
+#  10: .nvmrc の先頭の数字（メジャー版）だけを読む（22.11.0 が 22110 になっていた）・nvm install の失敗で止めて知らせる・
+#      依存を使い回すのは QA と同じ import() で Playwright を読めるときだけ（ESM の入口が欠けても通っていた）・
+#      2つ同時に動いても npm ci を重ねない（ロック）・Git Bash では CHROMIUM_PATH を Windows の形に直す（2026-11-07 shared-workflows #219）
+#  11: 強制終了で残ったロックは、同じ機械で持ち主が動いていなければ外す（10分待って止まっていた。#259）
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -32,14 +38,15 @@ npm_dir=qa   # package.json のあるフォルダ（ゲームは qa。ちがえ�
 [ -f "$npm_dir/package.json" ] || fail "$npm_dir/package.json が無い（scripts/setup.sh の npm_dir= を package.json のあるフォルダにする）"
 
 # --- Node.js（版は .nvmrc。nvm・fnm・mise・Volta などはこのファイルを読む）---
-want=$(tr -dc '0-9' < .nvmrc)
+want=$(sed -E -n 's/^[^0-9]*([0-9]+).*/\1/p' .nvmrc | head -n1)   # 22・v22・22.11.0 のどれでも 22（版10）
+[ -n "$want" ] || fail ".nvmrc から Node の版を読めない（22 のように書く）"
 node_ok() { command -v node >/dev/null && [ "$(node -p 'process.versions.node.split(".")[0]')" -ge "$want" ]; }
 if ! node_ok; then
   # 版が足りず nvm があれば、.nvmrc の版を入れる（Claude Code のクラウドは /opt/nvm にある）
   NVM_DIR=${NVM_DIR:-$HOME/.nvm}; [ -s "$NVM_DIR/nvm.sh" ] || NVM_DIR=/opt/nvm
   if [ -s "$NVM_DIR/nvm.sh" ]; then
     # --no-use: 読んだ時点で .nvmrc の版に切り替えようとさせない（入っていないと 3 を返し、set -e で黙って止まる）
-    set +u; export NVM_DIR; . "$NVM_DIR/nvm.sh" --no-use; nvm install "$want" >/dev/null; set -u
+    set +u; export NVM_DIR; . "$NVM_DIR/nvm.sh" --no-use; nvm install "$want" >/dev/null || { set -u; fail "nvm install $want に失敗した（ネットにつながるか確かめる。https://github.com/nvm-sh/nvm#troubleshooting）"; }; set -u
     if node_ok; then
       # nvm の切り替えはこのスクリプトの中だけに効く（親のシェルは古い Node のまま）
       if [ -n "${CLAUDE_ENV_FILE:-}" ]; then session_env "PATH=\"$(dirname "$(command -v node)"):\$PATH\""; else todo+=(". $(q "$NVM_DIR/nvm.sh") && nvm use $want"); fi   # nvm はシェルの関数なので、先に読み込む（新しいシェルには無い。版5）
@@ -53,14 +60,45 @@ node_ok || fail "Node.js $want 以上が要る（今は $(node -v 2>/dev/null ||
 # 毎回 npm ci すると、QA の最中に node_modules を消して QA を落とす（版5）。QA を回している間は、このスクリプトを動かさない
 stamp="$npm_dir/node_modules/.setup-stamp"
 sum=$( { node -v; cat "$npm_dir/package-lock.json"; } | cksum )
-if [ -f "$stamp" ] && [ "$(cat "$stamp")" = "$sum" ] && (cd "$npm_dir" && npm ls --all --include=dev >/dev/null 2>&1); then
+# package.json にある Playwright を、QA と同じ import() で読めるか（require では ESM の入口 index.mjs の欠けが分からない。版10）
+pw_loads() {
+  (cd "$npm_dir" && node --input-type=module -e '
+    import { readFileSync } from "node:fs";
+    const pkg = JSON.parse(readFileSync("package.json", "utf8"));
+    const want = ["playwright", "playwright-core", "@playwright/test"].filter((m) => (pkg.dependencies || {})[m] || (pkg.devDependencies || {})[m]);
+    for (const m of want) await import(m);
+  ' >/dev/null 2>&1)
+}
+deps_ok() { [ -f "$stamp" ] && [ "$(cat "$stamp")" = "$sum" ] && (cd "$npm_dir" && npm ls --all --include=dev >/dev/null 2>&1) && pw_loads; }
+# 2つのセッションが同時に動いても npm ci を重ねない（片方が入れている node_modules をもう片方が消す。版10）
+lock="$npm_dir/.setup-lock"
+got=""
+me="$(hostname 2>/dev/null || echo local) $$"
+# 持ち主（同じ機械で、もう動いていない）が強制終了で残したロックだけを外す。別の機械・名札の無いロックは外さない（版11の CodeRabbit）
+stale() { local o; o=$(cat "$lock/owner" 2>/dev/null) || return 1; [ "${o% *}" = "${me% *}" ] && ! kill -0 "${o##* }" 2>/dev/null; }
+for _ in $(seq 1 600); do
+  if mkdir "$lock" 2>/dev/null; then echo "$me" > "$lock/owner"; got=1; break; fi
+  if stale; then echo "前の setup.sh が残したロックを外す（$(cat "$lock/owner" 2>/dev/null)）"; rm -f "$lock/owner"; rmdir "$lock" 2>/dev/null; continue; fi
+  sleep 1
+done
+[ -n "$got" ] || fail "$lock が10分消えない（ほかの setup.sh が止まったまま。動いていなければ rm -r $lock）"   # 取れなかったら進まない・人のロックを消さない
+trap 'rm -f "$lock/owner"; rmdir "$lock" 2>/dev/null || true' EXIT
+if deps_ok; then
   echo "依存は lock どおりに入っている（入れ直さない）"
 else
   (cd "$npm_dir" && npm ci --include=dev --no-audit --no-fund)   # NODE_ENV=production でも検査の道具（devDependencies）を入れる（版6）
   echo "$sum" > "$stamp"
 fi
+rm -f "$lock/owner"; rmdir "$lock" 2>/dev/null || true
+trap - EXIT   # 返したあとは、あとから来た setup.sh のロックを終わりに消さない
 
 # Playwright のブラウザ。検査は CHROMIUM_PATH があればそれを、無ければ Playwright の置き場のものを使う
+# 相対パスはここで絶対パスにする（起動の試しは "$npm_dir" に移って動く。Playwright は相対の executablePath をいまの場所から探す。版8）
+if [ -n "${CHROMIUM_PATH:-}" ]; then
+  case "$CHROMIUM_PATH" in /* | [A-Za-z]:*) ;; *) CHROMIUM_PATH="$PWD/$CHROMIUM_PATH"; export CHROMIUM_PATH; session_env "CHROMIUM_PATH=$(q "$CHROMIUM_PATH")" ;; esac   # 以後の QA にも絶対パスを渡す（版9）
+  # Git Bash の /c/... の形は Node が読めないので C:/... にする（版10）
+  if command -v cygpath >/dev/null && [ "${CHROMIUM_PATH#/}" != "$CHROMIUM_PATH" ]; then CHROMIUM_PATH=$(cygpath -m "$CHROMIUM_PATH"); export CHROMIUM_PATH; session_env "CHROMIUM_PATH=$(q "$CHROMIUM_PATH")"; fi
+fi
 if [ "${PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD:-}" = 1 ]; then
   # 取ってこない環境（Claude Code のクラウドなど）は、入っているものを探す。見つからなければ止める
   pre=${PW_PREINSTALLED:-/opt/pw-browsers/chromium}   # PW_PREINSTALLED は検査（check-setup-template.sh）用
@@ -82,13 +120,15 @@ fi
 # 本当に起動できるかを試す（Linux で足りないライブラリ・Playwright と合わないブラウザは、ここまでの検査では分からない。版5）。
 # package.json に Playwright を書いていない（検査でブラウザを使わない）リポジトリでは試さない。
 # 書いてあるのに読み込めないときは止める（入れ損ねたまま「✓」を出していた。版7）
-if ! err=$(cd "$npm_dir" && node -e '
+if ! err=$(cd "$npm_dir" && node --input-type=module -e '
+  import { readFileSync } from "node:fs";
   const names = ["playwright", "playwright-core", "@playwright/test"];
-  const pkg = require("./package.json"), want = names.filter((m) => (pkg.dependencies || {})[m] || (pkg.devDependencies || {})[m]);
-  let pw; for (const m of names) { try { pw = require(m); break; } catch {} }
+  const pkg = JSON.parse(readFileSync("package.json", "utf8")), want = names.filter((m) => (pkg.dependencies || {})[m] || (pkg.devDependencies || {})[m]);
+  let pw; for (const m of names) { try { pw = await import(m); break; } catch {} }   // QA と同じ import()（版10）
   if (!pw && want.length) { console.error("package.json に " + want.join("・") + " があるのに読み込めない（npm ci が入れ損ねた。node_modules を消して入れ直す）"); process.exit(1); }
   if (!pw) process.exit(0);
-  pw.chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined }).then((b) => b.close(), (e) => { console.error(String(e.message).split("\n").slice(0, 4).join("\n")); process.exit(1); });
+  const chromium = pw.chromium || (pw.default && pw.default.chromium);
+  await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined }).then((b) => b.close(), (e) => { console.error(String(e.message).split("\n").slice(0, 4).join("\n")); process.exit(1); });
 ' 2>&1); then
   hint="ブラウザの場所（CHROMIUM_PATH）を直す"
   [ "$(uname -s)" = Linux ] && hint="Linux なら足りないライブラリを sudo npx playwright install-deps chromium で入れる（Playwright Docs「Browsers」）か、$hint"

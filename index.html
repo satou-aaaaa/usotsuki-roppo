@@ -224,7 +224,7 @@ html.a11y-cvd .slot.out{border-width:2px}
 /* all:unset のボタンでも、キーで選んだときの枠を必ず出す（いちばん最後に強く書く） */
 :is(.btn,.w,.card,.spine,.none,.shiori,button,a):focus-visible{outline:3px solid #fff!important;outline-offset:3px}
 </style>
-<!-- a11y:begin 見やすさの設定 v5（shared-workflows template/a11y/a11y.html の写し。ここでは直さず、ひな形を直して全部のゲームへ写す。drift-check と qa/a11y.mjs が同じ中身か見る） -->
+<!-- a11y:begin 見やすさの設定 v6（shared-workflows template/a11y/a11y.html の写し。ここでは直さず、ひな形を直して全部のゲームへ写す。drift-check と qa/a11y.mjs が同じ中身か見る） -->
 <style id="a11y-css">
 /* だれでも：キーボードで選んだ所に太い枠（WCAG 2.4.7・2.4.13） */
 :is(button,a,input,select,textarea,summary,[tabindex]):focus-visible{outline:3px solid #1a5fd0!important;outline-offset:2px!important;box-shadow:0 0 0 5px #fff!important}
@@ -242,6 +242,7 @@ html:not(.a11y-ruby) ruby.a11y-rb>rt{display:none}
 /* 設定の画面（どのゲームでも同じ見た目・同じ濃さ。白地に黒で 15:1） */
 .a11y-dlg{max-width:min(420px,calc(100vw - 32px));width:100%;box-sizing:border-box;border:2px solid #1d2320;border-radius:14px;padding:18px 16px 14px;background:#fffdf8;color:#1d2320;font:500 16px/1.6 "BIZ UDPGothic","Hiragino Sans","Yu Gothic UI",Meiryo,sans-serif;letter-spacing:0}
 .a11y-dlg::backdrop{background:#0008}
+.a11y-dlg:not([open]){display:none}
 .a11y-dlg h2{font-size:19px;margin:0 0 4px;font-weight:700;line-height:1.4}
 .a11y-dlg p{margin:4px 0 10px;font-size:14px;color:#3d4440;line-height:1.6}
 .a11y-dlg label{display:flex;gap:12px;align-items:center;min-height:48px;padding:6px 4px;border-top:1px solid #1d232022;cursor:pointer;line-height:1.4}
@@ -340,7 +341,8 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
       set(k, e.target.checked);
       if (k === "say") dlg.querySelector("#a11y-novoice").hidden = !(e.target.checked && !voice());
     });
-    dlg.querySelector("[data-a11y-close]").addEventListener("click", () => dlg.close());
+    // dialog を知らないブラウザでは close が無いので、open を外して閉じ、フォーカスを戻す（v6。jitensha-rule #1・sekai-jikoku #1 の CodeRabbit）
+    dlg.querySelector("[data-a11y-close]").addEventListener("click", () => { if (dlg.close) dlg.close(); else { dlg.removeAttribute("open"); if (lastFocus && lastFocus.focus) lastFocus.focus(); } });
     dlg.addEventListener("close", () => { if (lastFocus && lastFocus.focus) lastFocus.focus(); });
     sayBtn = document.createElement("button");
     sayBtn.type = "button"; sayBtn.className = "a11y-saybtn"; sayBtn.textContent = "🔊 読む"; sayBtn.setAttribute("aria-label", "画面の問題を読み上げる");
