@@ -667,7 +667,12 @@ try {
       const ahead = await g.evaluate(() => { const o = JSON.parse(localStorage.getItem(KEY)), r = o.erun; r.i += 2; r.n += 2; localStorage.setItem(KEY, JSON.stringify(o)); S.st = { done: true, ok: true }; render(); return { i: r.i, id: r.list[r.i] }; });
       await g.click("#next");
       check("答え合わせのあいだに別のタブで同じとことんの回が進んだら、次へで進んだほうのページを出す", await g.evaluate((a) => S.i === a.i && S.list[S.i].id === a.id && mem.erun.i === a.i, ahead), JSON.stringify(ahead));
+      check("進んだ先がまだ直していないページなら下読み、直したページなら下読みなし", await g.evaluate(() => !!document.querySelector("#peek") === !mem.solved[S.list[S.i].id] && (!document.querySelector("#peek") || document.querySelector(".text").textContent === S.list[S.i].w.join(""))));
       await g.evaluate(() => { const r = mem.erun; r.i -= 2; r.n -= 2; localStorage.setItem(KEY, JSON.stringify(mem)); });
+      // 別のタブ（前の版）が並びの最後まで進めて新しい並びに替えていなかったら、次へで新しい並びに替えて続ける（止まらない）
+      const tail = await g.evaluate(() => { const o = JSON.parse(localStorage.getItem(KEY)), r = o.erun, k = r.list.length - r.i; r.i = r.list.length; r.n += k; localStorage.setItem(KEY, JSON.stringify(o)); S.st = { done: true, ok: true }; render(); return r.list[r.list.length - 1]; });
+      await g.click("#next");
+      check("別のタブが並びの最後まで進めていても、次へで新しい並びに替えて続ける", await g.evaluate((last) => mem.erun.i === 0 && S.i === 0 && !!S.list[0] && S.list[0].id !== last && !!document.querySelector("#epage")), tail);
       await g.evaluate((id) => { delete mem.solved[id]; const o = JSON.parse(localStorage.getItem(KEY)); delete o.solved[id]; localStorage.setItem(KEY, JSON.stringify(o)); }, other);
       check("とことんの下読みで直したページも、続けて直せた数に入る（封じ帳には数えない）", n14 === 14 && await g.evaluate(() => Object.keys(mem.solved).length === 2), String(n14));
       await g.evaluate(() => shelf()); await g.click("#easy"); // 本棚のボタンで「下読みなし」に切り替える

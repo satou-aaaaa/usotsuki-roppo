@@ -827,6 +827,7 @@ function next() {
   if (S.mode === "e") { // 進み具合は保存した回に合わせる（並びを読み終えて新しい並びに替わっていても続く）
     try { merge(); } catch (e) { /* 読めなくても続ける */ } // 先に読み直す：別のタブで進んだ回・直したページに合わせる（2026-11-08 CodeRabbit）
     const r = mem.erun; if (!runOk(r) || r.id !== S.eid) return endFin();
+    if (r.i >= r.list.length) { refill(r); save(); } // 別のタブ（前の版）が並びの最後まで進めていたら、新しい並びに替えてから続ける（2026-11-08 CodeRabbit）
     S.list = r.list.map((id) => byId[id]); S.i = r.i; S.st = null; S.cards = null; S.marked = []; S.toldHint = false;
     S.easy = S.peek = peekE(S.list[S.i]);
     return render(true);
