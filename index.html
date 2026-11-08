@@ -826,7 +826,9 @@ function finish(ok, note, miss) {
 function next() {
   if (S.mode === "e") { // 進み具合は保存した回に合わせる（並びを読み終えて新しい並びに替わっていても続く）
     const r = mem.erun; if (!runOk(r) || r.id !== S.eid) return endFin();
-    S.list = r.list.map((id) => byId[id]); S.i = r.i; S.st = null; S.cards = null; S.marked = []; S.toldHint = false; S.easy = S.peek = peekE(S.list[S.i]);
+    S.list = r.list.map((id) => byId[id]); S.i = r.i; S.st = null; S.cards = null; S.marked = []; S.toldHint = false;
+    try { merge(); } catch (e) { /* 読めなくても続ける */ } // 別のタブで直したページには下読みを出さない（2026-11-08 CodeRabbit）
+    S.easy = S.peek = peekE(S.list[S.i]);
     return render(true);
   }
   S.i++; S.st = null; S.cards = null; S.marked = []; S.toldHint = false; S.peek = S.easy;
