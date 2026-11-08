@@ -630,6 +630,64 @@ try {
     await e.reload();
     check("今までの記録がある人（設定が無い）は、下読みなしのまま（遊び方を勝手に変えない）", await e.evaluate(() => mem.opt.easy === false) && (await e.locator(".spine .first").count()) === 0);
     check("下読みの検査でページのエラーが無い", errE.length === 0, errE.join(" / "));
+    // とことんでも下読み（2026-11-08 週1の見直しで遊んで見つけた：下読みありのはじめての人が、とことんでは条文を知らないまま当てずっぽうになった）
+    // 下読みありなら、まだ直していないページだけ先に正しい条文を見せる。巻で直したページは見せない（思い出して答える）。下読みなしなら見せない
+    {
+      const g = await browser.newPage({ viewport: { width: 320, height: 760 } });
+      const errG = []; g.on("pageerror", (x) => errG.push(x.message));
+      await g.goto(url);
+      await g.evaluate(() => { localStorage.setItem(KEY, JSON.stringify({ solved: { ken1: true, ken2: true }, opt: { easy: true } })); mem = load(); shelf(); });
+      await g.click("#go-e");
+      const bad = []; let peeks = 0, plain = 0, quitOnPeek = true;
+      for (let k = 0; k < 14; k++) {
+        const pk = await g.evaluate(() => { const p = S.list[S.i]; return { id: p.id, lie: p.lie, right: p.lie >= 0 ? p.w[p.lie] : null, solved: !!mem.solved[p.id], correct: p.w.join(""), text: document.querySelector(".text")?.textContent,
+          peek: !!document.querySelector("#peek"), btns: document.querySelectorAll(".text button, #none, .card").length, boss: !!document.querySelector(".page.boss, .chip"),
+          quit: !!document.querySelector("#quit"), leave: !!document.querySelector("#leave"), says: document.querySelector(".q")?.textContent || "" }; });
+        if (pk.solved) { plain++; if (pk.peek || !pk.says.includes("うそに書き換えられた")) bad.push(`直したページに下読み ${pk.id}`); }
+        else {
+          peeks++;
+          if (!pk.peek || pk.text !== pk.correct || pk.btns !== 0 || pk.boss) bad.push(`まだのページに下読みが無い ${pk.id}`);
+          if (!pk.quit || pk.leave) quitOnPeek = false;
+          await g.click("#flip");
+          if (!(await g.evaluate(() => !document.querySelector("#peek") && document.querySelector(".q").textContent.includes("下読みとちがう")))) bad.push(`めくった後 ${pk.id}`);
+        }
+        if (pk.lie < 0) await g.click("#none");
+        else { await g.click(`.w[data-k="${pk.lie}"]`); await g.locator(".card", { hasText: pk.right }).first().click(); }
+        await g.click("#next");
+      }
+      check("とことんでも下読みありなら、まだ直していないページだけ先に正しい条文を見せ（めくると「下読みとちがう言葉」）、直したページは見せない（14ページ・並びを読み終えても）", bad.length === 0 && peeks >= 10 && plain >= 2, JSON.stringify({ bad, peeks, plain }));
+      check("とことんの下読みの画面にも「ここで降りる」があり、「本棚へもどる」は無い", quitOnPeek);
+      const n14 = await g.evaluate(() => mem.erun.n);
+      // 答え合わせの画面のあいだに別のタブで次のページを直したら、そのページには下読みを出さない（2026-11-08 CodeRabbit）
+      const other = await g.evaluate(() => { const r = mem.erun, j = r.list.findIndex((id, k) => k >= r.i && !mem.solved[id]); [r.list[r.i], r.list[j]] = [r.list[j], r.list[r.i]]; save(); const nx = byId[r.list[r.i]], o = JSON.parse(localStorage.getItem(KEY)); o.solved[nx.id] = true; localStorage.setItem(KEY, JSON.stringify(o)); return nx.id; });
+      await g.evaluate(() => { S.st = { done: true, ok: true }; render(); });
+      await g.click("#next");
+      check("答え合わせのあいだに別のタブで直した次のページには、とことんで下読みを出さない（案内も下読みなしの言葉）", await g.evaluate((id) => S.list[S.i].id === id && !document.querySelector("#peek") && !!mem.solved[id] && !S.easy && document.querySelector(".q").textContent.includes("うそに書き換えられた"), other), other);
+      // 答え合わせのあいだに別のタブで同じ回が先へ進んだら、進んだほうのページを出す（古いページを出さない。2026-11-08 CodeRabbit）
+      const ahead = await g.evaluate(() => { const o = JSON.parse(localStorage.getItem(KEY)), r = o.erun; r.i += 2; r.n += 2; localStorage.setItem(KEY, JSON.stringify(o)); S.st = { done: true, ok: true }; S.streak = 2; render(); return { i: r.i, id: r.list[r.i] }; });
+      await g.click("#next");
+      check("答え合わせのあいだに別のタブで同じとことんの回が進んだら、次へで進んだほうのページを出し、このタブの続けて直した数は0に戻す", await g.evaluate((a) => S.i === a.i && S.list[S.i].id === a.id && mem.erun.i === a.i && S.streak === 0, ahead), JSON.stringify(ahead));
+      check("進んだ先がまだ直していないページなら下読み、直したページなら下読みなし", await g.evaluate(() => !!document.querySelector("#peek") === !mem.solved[S.list[S.i].id] && (!document.querySelector("#peek") || document.querySelector(".text").textContent === S.list[S.i].w.join(""))));
+      await g.evaluate(() => { const r = mem.erun; r.i -= 2; r.n -= 2; localStorage.setItem(KEY, JSON.stringify(mem)); });
+      // 別のタブ（前の版）が並びの最後まで進めて新しい並びに替えていなかったら、次へで新しい並びに替えて続ける（止まらない）
+      const tail = await g.evaluate(() => { const o = JSON.parse(localStorage.getItem(KEY)), r = o.erun, k = r.list.length - r.i; r.i = r.list.length; r.n += k; localStorage.setItem(KEY, JSON.stringify(o)); S.st = { done: true, ok: true }; render(); return r.list[r.list.length - 1]; });
+      await g.click("#next");
+      check("別のタブが並びの最後まで進めていても、次へで新しい並びに替えて続ける", await g.evaluate((last) => mem.erun.i === 0 && S.i === 0 && !!S.list[0] && S.list[0].id !== last && !!document.querySelector("#epage")), tail);
+      await g.evaluate((id) => { delete mem.solved[id]; const o = JSON.parse(localStorage.getItem(KEY)); delete o.solved[id]; localStorage.setItem(KEY, JSON.stringify(o)); }, other);
+      check("とことんの下読みで直したページも、続けて直せた数に入る（封じ帳には数えない）", n14 === 14 && await g.evaluate(() => Object.keys(mem.solved).length === 2), String(n14));
+      await g.evaluate(() => shelf()); await g.click("#easy"); // 本棚のボタンで「下読みなし」に切り替える
+      await g.click("#go-e");
+      let noPeek = true;
+      for (let k = 0; k < 4; k++) { if (await g.locator("#peek").count()) noPeek = false; await g.click("#none"); await g.click("#next"); }
+      check("下読みなしなら、とことんで下読みを出さない", noPeek && await g.evaluate(() => mem.opt.easy === false));
+      await g.evaluate(() => shelf()); await g.click("#easy");
+      await g.click("#go-e");
+      if (!(await g.locator("#peek").count())) await g.evaluate(() => { S.peek = true; render(true); });
+      await g.click("#quit");
+      check("とことんの下読みの画面で「ここで降りる」を押すと、終わりの画面が出る", (await g.locator("#eres").count()) === 1);
+      check("とことんの下読みの検査でページのエラーが無い", errG.length === 0, errG.join(" / "));
+      await g.close();
+    }
     await e.close();
   }
 

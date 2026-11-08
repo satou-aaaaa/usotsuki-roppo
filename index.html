@@ -546,6 +546,8 @@ const allDone = () => ALL.every((p) => mem.solved[p.id]);
 const bossOf = (b) => b.pages[b.pages.length - 1];
 // 下読み：法律を知らなくても遊べるよう、先に正しい条文を見せてから、ねじれ文字が書き換えたページを出す（はじめての人向け）
 const easy = () => mem.opt.easy !== false;
+// とことんでは、下読みありの人に、まだ直していないページだけ下読みを見せる（法律を知らなくても遊べるように。巻で直したページは思い出して答える）
+const peekE = (p) => easy() && !mem.solved[p.id];
 const FIRST = "min"; // はじめの1冊：身近な決まり（成年・契約・遺言）が多い民法
 
 // しおりに聞く（1回に1度）：正しい言葉のうち半分ほどを緑にする。うその言葉は必ず残し、候補が2つ以上残るようにする。
@@ -717,7 +719,7 @@ function startEndless() {
     save();
   } else if (r.i >= r.list.length) { refill(r); save(); }
   const list = r.list.map((id) => byId[id]);
-  S = { mode: "e", eid: r.id, b: list[r.i].book, list, i: r.i, st: null, cards: null, got: [], lost: [], streak: 0, best: 0, only: false, hint: 0, hinted: false, marked: [] };
+  S = { mode: "e", eid: r.id, b: list[r.i].book, list, i: r.i, st: null, cards: null, got: [], lost: [], streak: 0, best: 0, only: false, hint: 0, hinted: false, marked: [], easy: peekE(list[r.i]), peek: peekE(list[r.i]) };
   render(true);
 }
 
@@ -747,9 +749,11 @@ function render(turn) {
     h += '<p class="peek-tag" id="peek">📖 下読み：これが正しい条文</p>' +
       `<div class="text done clean" tabindex="-1" data-a11y-say>${p.w.map((x) => `<span class="w">${x}</span>`).join("")}</div>` +
       '<p class="q" data-a11y-say>しおり「覚えたら、めくってね。ねじれ文字が1か所を書き換えるかも」</p>' +
-      '<button class="btn go" id="flip">めくる</button></article></div><button class="btn sub2 leave" id="leave">本棚へもどる</button>';
+      '<button class="btn go" id="flip">めくる</button></article></div>' +
+      (er ? `<p class="hint" id="ehint">まちがえても続く。好きなところで降りられる。</p><button class="btn sub2 wide" id="quit">ここで降りる（${answered(er)}ページで終える）</button>` : '<button class="btn sub2 leave" id="leave">本棚へもどる</button>');
     view().innerHTML = h;
-    $("leave").addEventListener("click", shelf);
+    const lv0 = $("leave"); if (lv0) lv0.addEventListener("click", shelf);
+    const qt0 = $("quit"); if (qt0) qt0.addEventListener("click", () => endFin());
     const fl = $("flip"); const ptx = view().querySelector(".text"); (turn && ptx ? ptx : fl).focus({ preventScroll: true }); fl.addEventListener("click", () => { S.peek = false; render(true); });
     return;
   }
@@ -821,8 +825,13 @@ function finish(ok, note, miss) {
 }
 function next() {
   if (S.mode === "e") { // 進み具合は保存した回に合わせる（並びを読み終えて新しい並びに替わっていても続く）
+    const a0 = runOk(mem.erun) ? answered(mem.erun) : -1;
+    try { merge(); } catch (e) { /* 読めなくても続ける */ } // 先に読み直す：別のタブで進んだ回・直したページに合わせる（2026-11-08 CodeRabbit）
     const r = mem.erun; if (!runOk(r) || r.id !== S.eid) return endFin();
+    if (answered(r) !== a0) S.streak = 0; // 別のタブで答えたページがあれば、このタブの「続けて直した数」は途切れたものとする（大技を出しすぎない）
+    if (r.i >= r.list.length) { refill(r); save(); } // 別のタブ（前の版）が並びの最後まで進めていたら、新しい並びに替えてから続ける（2026-11-08 CodeRabbit）
     S.list = r.list.map((id) => byId[id]); S.i = r.i; S.st = null; S.cards = null; S.marked = []; S.toldHint = false;
+    S.easy = S.peek = peekE(S.list[S.i]);
     return render(true);
   }
   S.i++; S.st = null; S.cards = null; S.marked = []; S.toldHint = false; S.peek = S.easy;
