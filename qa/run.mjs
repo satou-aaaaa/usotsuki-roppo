@@ -662,7 +662,12 @@ try {
       const other = await g.evaluate(() => { const r = mem.erun, j = r.list.findIndex((id, k) => k >= r.i && !mem.solved[id]); [r.list[r.i], r.list[j]] = [r.list[j], r.list[r.i]]; save(); const nx = byId[r.list[r.i]], o = JSON.parse(localStorage.getItem(KEY)); o.solved[nx.id] = true; localStorage.setItem(KEY, JSON.stringify(o)); return nx.id; });
       await g.evaluate(() => { S.st = { done: true, ok: true }; render(); });
       await g.click("#next");
-      check("答え合わせのあいだに別のタブで直した次のページには、とことんで下読みを出さない", await g.evaluate((id) => S.list[S.i].id === id && !document.querySelector("#peek") && !!mem.solved[id], other), other);
+      check("答え合わせのあいだに別のタブで直した次のページには、とことんで下読みを出さない（案内も下読みなしの言葉）", await g.evaluate((id) => S.list[S.i].id === id && !document.querySelector("#peek") && !!mem.solved[id] && !S.easy && document.querySelector(".q").textContent.includes("うそに書き換えられた"), other), other);
+      // 答え合わせのあいだに別のタブで同じ回が先へ進んだら、進んだほうのページを出す（古いページを出さない。2026-11-08 CodeRabbit）
+      const ahead = await g.evaluate(() => { const o = JSON.parse(localStorage.getItem(KEY)), r = o.erun; r.i += 2; r.n += 2; localStorage.setItem(KEY, JSON.stringify(o)); S.st = { done: true, ok: true }; render(); return { i: r.i, id: r.list[r.i] }; });
+      await g.click("#next");
+      check("答え合わせのあいだに別のタブで同じとことんの回が進んだら、次へで進んだほうのページを出す", await g.evaluate((a) => S.i === a.i && S.list[S.i].id === a.id && mem.erun.i === a.i, ahead), JSON.stringify(ahead));
+      await g.evaluate(() => { const r = mem.erun; r.i -= 2; r.n -= 2; localStorage.setItem(KEY, JSON.stringify(mem)); });
       await g.evaluate((id) => { delete mem.solved[id]; const o = JSON.parse(localStorage.getItem(KEY)); delete o.solved[id]; localStorage.setItem(KEY, JSON.stringify(o)); }, other);
       check("とことんの下読みで直したページも、続けて直せた数に入る（封じ帳には数えない）", n14 === 14 && await g.evaluate(() => Object.keys(mem.solved).length === 2), String(n14));
       await g.evaluate(() => shelf()); await g.click("#easy"); // 本棚のボタンで「下読みなし」に切り替える
