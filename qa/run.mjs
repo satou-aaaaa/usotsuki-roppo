@@ -664,9 +664,9 @@ try {
       await g.click("#next");
       check("答え合わせのあいだに別のタブで直した次のページには、とことんで下読みを出さない（案内も下読みなしの言葉）", await g.evaluate((id) => S.list[S.i].id === id && !document.querySelector("#peek") && !!mem.solved[id] && !S.easy && document.querySelector(".q").textContent.includes("うそに書き換えられた"), other), other);
       // 答え合わせのあいだに別のタブで同じ回が先へ進んだら、進んだほうのページを出す（古いページを出さない。2026-11-08 CodeRabbit）
-      const ahead = await g.evaluate(() => { const o = JSON.parse(localStorage.getItem(KEY)), r = o.erun; r.i += 2; r.n += 2; localStorage.setItem(KEY, JSON.stringify(o)); S.st = { done: true, ok: true }; render(); return { i: r.i, id: r.list[r.i] }; });
+      const ahead = await g.evaluate(() => { const o = JSON.parse(localStorage.getItem(KEY)), r = o.erun; r.i += 2; r.n += 2; localStorage.setItem(KEY, JSON.stringify(o)); S.st = { done: true, ok: true }; S.streak = 2; render(); return { i: r.i, id: r.list[r.i] }; });
       await g.click("#next");
-      check("答え合わせのあいだに別のタブで同じとことんの回が進んだら、次へで進んだほうのページを出す", await g.evaluate((a) => S.i === a.i && S.list[S.i].id === a.id && mem.erun.i === a.i, ahead), JSON.stringify(ahead));
+      check("答え合わせのあいだに別のタブで同じとことんの回が進んだら、次へで進んだほうのページを出し、このタブの続けて直した数は0に戻す", await g.evaluate((a) => S.i === a.i && S.list[S.i].id === a.id && mem.erun.i === a.i && S.streak === 0, ahead), JSON.stringify(ahead));
       check("進んだ先がまだ直していないページなら下読み、直したページなら下読みなし", await g.evaluate(() => !!document.querySelector("#peek") === !mem.solved[S.list[S.i].id] && (!document.querySelector("#peek") || document.querySelector(".text").textContent === S.list[S.i].w.join(""))));
       await g.evaluate(() => { const r = mem.erun; r.i -= 2; r.n -= 2; localStorage.setItem(KEY, JSON.stringify(mem)); });
       // 別のタブ（前の版）が並びの最後まで進めて新しい並びに替えていなかったら、次へで新しい並びに替えて続ける（止まらない）
