@@ -224,7 +224,7 @@ html.a11y-cvd .slot.out{border-width:2px}
 /* all:unset のボタンでも、キーで選んだときの枠を必ず出す（いちばん最後に強く書く） */
 :is(.btn,.w,.card,.spine,.none,.shiori,button,a):focus-visible{outline:3px solid #fff!important;outline-offset:3px}
 </style>
-<!-- a11y:begin 見やすさの設定 v6（shared-workflows template/a11y/a11y.html の写し。ここでは直さず、ひな形を直して全部のゲームへ写す。drift-check と qa/a11y.mjs が同じ中身か見る） -->
+<!-- a11y:begin 見やすさの設定 v7（shared-workflows template/a11y/a11y.html の写し。ここでは直さず、ひな形を直して全部のゲームへ写す。drift-check と qa/a11y.mjs が同じ中身か見る） -->
 <style id="a11y-css">
 /* だれでも：キーボードで選んだ所に太い枠（WCAG 2.4.7・2.4.13） */
 :is(button,a,input,select,textarea,summary,[tabindex]):focus-visible{outline:3px solid #1a5fd0!important;outline-offset:2px!important;box-shadow:0 0 0 5px #fff!important}
@@ -282,6 +282,8 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
   // 保存した値がオブジェクトでなければ（別のページが書いた・手で直した）無かったことにする（2026-11-05 CodeRabbit：true が入ると設定が開けなくなる）
   const load = () => { try { const v = JSON.parse(localStorage.getItem(KEY) || "{}"); return v && typeof v === "object" && !Array.isArray(v) ? v : {}; } catch { return {}; } };
   let S = load();
+  // 保存できなかった変更（開いているあいだだけ覚える）。書く前に読み直した値で、まだ保存できていない変更を上書きしない（v7、nenkin-shikumi #1 の CodeRabbit）
+  let unsaved = {};
   // 決めていないものは端末の設定に合わせる（視差効果を減らす → 動きを減らす）
   const on = (k) => (k in S ? !!S[k] : k === "calm" ? media("(prefers-reduced-motion: reduce)") : false);
   let fontLoaded = false;
@@ -301,9 +303,9 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
     if (!on("say")) stop();
   };
   const set = (k, v) => {
-    S = { ...S, ...load() }; // 別のタブで変えた設定を消さないよう、書く前に読み直す
-    S[k] = !!v;
-    try { localStorage.setItem(KEY, JSON.stringify(S)); } catch { /* 保存できなくても今の画面には効かせる */ }
+    unsaved[k] = !!v;
+    S = { ...S, ...load(), ...unsaved }; // 別のタブで変えた設定を消さないよう、書く前に読み直す（保存できていない変更はこちらを残す）
+    try { localStorage.setItem(KEY, JSON.stringify(S)); unsaved = {}; } catch { /* 保存できなくても今の画面には効かせる */ }
     apply();
     document.dispatchEvent(new CustomEvent("a11ychange", { detail: { key: k, on: !!v } }));
   };
@@ -369,6 +371,13 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
   // 声の一覧はあとから届くことがある。届いたら「声がありません」を出し直す
   try { speechSynthesis.addEventListener("voiceschanged", () => { if (dlg) dlg.querySelector("#a11y-novoice").hidden = !(on("say") && !voice()); }); } catch { /* 無い端末 */ }
   apply();
+  // 端末の「視差効果を減らす」を開いたあとに変えても効かせる（自分で決めていないときだけ。v7、hatsuden-kurabe #1 の CodeRabbit）
+  try {
+    const mq = matchMedia("(prefers-reduced-motion: reduce)");
+    // 設定の画面を開いたままでも、チェックを今の状態に合わせる（合わないと1回目の押しで外せない）
+    const follow = () => { if (!("calm" in S)) { apply(); const c = dlg && dlg.querySelector('input[data-k="calm"]'); if (c) c.checked = on("calm"); document.dispatchEvent(new CustomEvent("a11ychange", { detail: { key: "calm", on: on("calm") } })); } };
+    if (mq.addEventListener) mq.addEventListener("change", follow); else if (mq.addListener) mq.addListener(follow);
+  } catch { /* matchMedia の無い端末 */ }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", build); else build();
   window.A11y = { on, set, open, say, stop };
 })();
