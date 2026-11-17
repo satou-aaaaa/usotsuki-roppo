@@ -224,6 +224,14 @@ for (const sc of screens) {
   }));
   check("端末の「視差効果を減らす」で動きを減らす設定が入り、動き続けるアニメーションが無い（WCAG 2.3.3）", r.calm && r.moving.length === 0, r.moving.join(","));
   await ctx.close();
+  // 開いたあとに端末の設定を変えても効かせる（自分で決めていないとき。v7、hatsuden-kurabe #1 の CodeRabbit）
+  const later = await openPage();
+  const before = await later.page.evaluate(() => document.documentElement.classList.contains("a11y-calm"));
+  await later.page.emulateMedia({ reducedMotion: "reduce" });
+  await later.page.waitForTimeout(100);
+  const after = await later.page.evaluate(() => document.documentElement.classList.contains("a11y-calm"));
+  check("開いたあとに端末の「視差効果を減らす」を入れても、動きを減らす設定が入る", !before && after);
+  await later.ctx.close();
 }
 
 // 6・7・8・1 の続き：キーボード・名前・知らせの場所・斜体・開くボタン
@@ -289,6 +297,18 @@ for (const sc of screens) {
   // 別のタブで変えた設定を、このタブの保存で消さない（2026-11-05 CodeRabbit）
   const merged = await page.evaluate(() => { const s = JSON.parse(localStorage.getItem("a11y-v1") || "{}"); s.ruby = true; localStorage.setItem("a11y-v1", JSON.stringify(s)); window.A11y.set("calm", true); const t = JSON.parse(localStorage.getItem("a11y-v1") || "{}"); return t.ruby === true && t.calm === true && t.read === true; });
   check("別のタブで変えた見やすさの設定を、このタブの保存で消さない", merged);
+  // 保存できないとき、あとの変更で前の変更（まだ保存できていない）を、読み直した古い値で消さない（v7、nenkin-shikumi #1 の CodeRabbit）
+  const kept2 = await page.evaluate(() => {
+    localStorage.setItem("a11y-v1", JSON.stringify({ read: false, cvd: false }));
+    const real = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k, v) { if (k === "a11y-v1") throw new Error("QuotaExceededError"); return real.call(this, k, v); };
+    try { window.A11y.set("read", true); window.A11y.set("cvd", true); } finally { Storage.prototype.setItem = real; }
+    const on = window.A11y.on("read") && window.A11y.on("cvd") && ["a11y-read", "a11y-cvd"].every((c) => document.documentElement.classList.contains(c));
+    window.A11y.set("ruby", false);
+    const t = JSON.parse(localStorage.getItem("a11y-v1") || "{}");
+    return on && t.read === true && t.cvd === true;
+  });
+  check("保存できないあいだに変えた見やすさの設定を、次の変更で消さない・保存できたらまとめて書く", kept2);
   // 保存した値がオブジェクトでなくても、設定のボタンと window.A11y が動く
   await page.evaluate(() => localStorage.setItem("a11y-v1", "true"));
   await page.reload(); await page.waitForTimeout(300);
