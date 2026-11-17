@@ -798,6 +798,9 @@ function render(turn) {
   const n = $("none"); if (n) n.addEventListener("click", () => finish(p.lie < 0, p.lie < 0 ? null : `うそがあった。「${p.bad}」がねじれ文字。`));
   const sh = $("shiori"); if (sh) sh.addEventListener("click", () => { S.hint--; S.hinted = true; S.marked = hintWords(p); render(); });
   const g = $("next"); if (g) { g.focus({ preventScroll: true }); g.addEventListener("click", next); }
+  // 答え合わせが長いページ（憲法の巻の ken9 など）は、320×640 のスマホで「次へ」が画面の下に隠れていた。答えたら「次へ」まで見えるように下げる（2026-11-17）
+  // めくる・大技の動き（transform）の途中で測るとずれるので、動きに左右されない offsetTop で位置を出す
+  if (g && st && st.done) { let y = 0; for (let e = g; e; e = e.offsetParent) y += e.offsetTop; const low = y + g.offsetHeight + 8; if (low > scrollY + innerHeight) window.scrollTo(0, low - innerHeight); }
   // 新しいページは本文へ枠を移して読み上げさせる（#view は丸ごと読み上げないので）
   if (!st && turn) { const tx = view().querySelector(".text"); if (tx) tx.focus({ preventScroll: true }); }
   if (st && st.done) tell(S.said); else if (st && st.choose) tell("ねじれ文字が姿を現した。正しい札を選ぶ。"); else if (S.marked.length && S.hinted && S.hint === 0 && !S.toldHint) { S.toldHint = true; tell(`しおり：✓ の付いた言葉 ${S.marked.length}つは正しい。`); }

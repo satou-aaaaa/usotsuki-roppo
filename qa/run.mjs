@@ -811,6 +811,24 @@ try {
     await u.evaluate(() => { const p = S.list[S.i]; if (p.lie >= 0) document.querySelector(`.w[data-k="${p.lie}"]`).click(); else document.getElementById("none").click(); });
     if (await u.locator(".card").count()) await u.locator(".card", { hasText: await u.evaluate(() => S.list[S.i].w[S.list[S.i].lie]) }).first().click();
     check(`${tag}：答えると、答え合わせ（#res）と次へのボタンが画面の中に出る`, await u.evaluate(() => { const r = document.getElementById("res"), n = document.getElementById("next"); if (!r || !n) return false; const b = n.getBoundingClientRect(); return b.top >= 0 && b.bottom <= innerHeight; }));
+    // 上の1回は乱数で選んだページなので、長い答え合わせのページ（ken9）を引いたときだけ落ちていた（2026-11-17）。全部のページで、直したときも逃がしたときも見る
+    const u2 = await browser.newPage({ viewport: { width: vw, height: vh }, deviceScaleFactor: 1 }); // 記録を汚さないよう別の窓で
+    const errU2 = []; u2.on("pageerror", (e) => errU2.push(e.message));
+    await u2.goto(url);
+    const hidden = await u2.evaluate(() => {
+      const out = [], vis = () => { const n = document.getElementById("next"); if (!n) return false; const b = n.getBoundingClientRect(); return b.top >= 0 && b.bottom <= innerHeight; };
+      for (const bk of BOOKS) for (const p of bk.pages) for (const right of [true, false]) {
+        openBook(bk.id); S.list = [p]; S.i = 0; S.easy = S.peek = false; S.st = null; S.cards = null; render(true); window.scrollTo(0, 0);
+        if (p.lie < 0) { if (right) document.getElementById("none").click(); else document.querySelector(".text button.w").click(); }
+        else if (!right) document.querySelector(`.text button.w:not([data-k="${p.lie}"])`).click();
+        else { document.querySelector(`.w[data-k="${p.lie}"]`).click(); [...document.querySelectorAll(".card")].find((c) => c.textContent === p.w[p.lie]).click(); }
+        document.getAnimations().forEach((a) => { try { a.finish(); } catch (e) { /* 終わりの無い動き */ } }); // 動きが終わったあとの位置で見る
+        if (!vis()) out.push(`${p.id}${right ? "" : "（逃がした）"}`);
+      }
+      return out;
+    });
+    await u2.context().close();
+    check(`${tag}：どのページでも、直しても逃がしても、答えたあとの「次へ」が画面の中に出る（全ページ×2）`, hidden.length === 0 && errU2.length === 0, [...hidden, ...errU2].join(","));
     await u.click("#leave");
     check(`${tag}：「本棚へもどる」を押すと本棚に戻り、直したページは残る`, (await u.locator(".spine").count()) === 6 && await u.evaluate(() => S === null && Object.keys(mem.solved).length === 1));
     // 巻の終わりは上から見せる（下のほうで最後のページを閉じても、巻の名前から出る）
