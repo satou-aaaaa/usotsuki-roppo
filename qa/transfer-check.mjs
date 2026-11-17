@@ -34,7 +34,7 @@ export async function checkTransfer({ browser, url, game, sample, check, open })
     await h.click();
     await page.waitForSelector(".hk-box");
   };
-  const sizes = async (page) => page.$$eval(".hk-box button, .hk-box label.hk-file", (bs) => bs.filter((b) => b.offsetParent).map((b) => [b.textContent, b.getBoundingClientRect().height]).filter(([, h]) => h < 44));
+  const sizes = async (page) => page.$$eval(".hk-box button, .hk-box label.hk-file", (bs) => bs.filter((b) => b.offsetParent).map((b) => [b.textContent, Math.round(b.getBoundingClientRect().height)]).filter(([, h]) => h < 44));
 
   // 1. 書き出す（端末A）
   const A = await browser.newContext({ viewport: { width: 375, height: 740 } });
@@ -82,7 +82,7 @@ export async function checkTransfer({ browser, url, game, sample, check, open })
   check("引き継ぎ：取り込んだあと URL にコードが残らない", !pb.url().includes("#hk="), pb.url());
   check("引き継ぎ：取り込んだと知らせる", (await pb.locator(".hk-toast").count()) === 1);
   // 知らせは消えずに「控えに戻す」を出す（取り込んだ記録でゲームの画面が出なくても戻せるように。版4）
-  const tu = await pb.$$eval("#hk-toast-undo, #hk-toast-close", (bs) => bs.map((b) => b.getBoundingClientRect().height));
+  const tu = await pb.$$eval("#hk-toast-undo, #hk-toast-close", (bs) => bs.map((b) => Math.round(b.getBoundingClientRect().height)));
   check("引き継ぎ：取り込んだ知らせに「控えに戻す」「閉じる」があり、44px以上", tu.length === 2 && tu.every((h) => h >= 44), JSON.stringify(tu));
   const bak = await pb.evaluate((g) => JSON.parse(localStorage.getItem("hk-backup:" + g) || "null"), game);
   check("引き継ぎ：前の記録を控えに残す", bak && JSON.stringify(Object.fromEntries(Object.entries(bak.d).sort())) === JSON.stringify(had));
@@ -357,7 +357,7 @@ export async function checkTransfer({ browser, url, game, sample, check, open })
   await old2.waitForTimeout(300);
   await pd.evaluate((g) => localStorage.setItem("hk-sync:" + g, "ほかのタブで入れ替えた." + Date.now()), game);
   // 帯を出すと同時に読み直しが始まるので、見た結果は読み直しても残る sessionStorage に書き、読み直しのあとに読む（重いと evaluate の返事より先に画面が消える）
-  await old2.evaluate((k) => { try { localStorage.setItem(k, "{}"); } catch (e) { /* なし */ } const b = document.getElementById("hk-stale-tab"); sessionStorage.setItem("hk-qa-band", String(!!b && b.getAttribute("role") === "alert" && b.querySelector("button").getBoundingClientRect().height >= 44)); }, firstKey).catch(() => {});
+  await old2.evaluate((k) => { try { localStorage.setItem(k, "{}"); } catch (e) { /* なし */ } const b = document.getElementById("hk-stale-tab"); sessionStorage.setItem("hk-qa-band", String(!!b && b.getAttribute("role") === "alert" && Math.round(b.querySelector("button").getBoundingClientRect().height) >= 44)); }, firstKey).catch(() => {});
   await old2.waitForLoadState("load").catch(() => {});
   await old2.waitForTimeout(300);
   const band = (await old2.evaluate(() => sessionStorage.getItem("hk-qa-band")).catch(() => null)) === "true";
