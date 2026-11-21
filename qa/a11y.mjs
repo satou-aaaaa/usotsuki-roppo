@@ -99,8 +99,11 @@ async function openPage({ width = 390, settings = null, reduced = false } = {}) 
   return { ctx, page, errors };
 }
 // はじめての人向けの説明（dialog）などを閉じる。説明そのものは「ホーム」で測る
-const dismiss = (page) => page.evaluate(() => { for (const d of document.querySelectorAll("dialog[open]:not(.a11y-dlg)")) d.close ? d.close() : d.removeAttribute("open"); });
+// はじめての練習と吹き出し（game-core の Core.coach）は、やめてホームへもどる（ホームから順に押して測るため）
+const leaveCoach = (page) => page.evaluate(() => { if (window.Core && Core.coach && Core.coach.active()) Core.coach.leave(); });
+const dismiss = (page) => page.evaluate(() => { if (window.Core && Core.coach && Core.coach.active()) Core.coach.leave(); for (const d of document.querySelectorAll("dialog[open]:not(.a11y-dlg)")) d.close ? d.close() : d.removeAttribute("open"); });
 async function go(page, sc) {
+  await leaveCoach(page); await page.waitForTimeout(100);
   if ((sc.click || []).length) await dismiss(page);
   for (const sel of sc.click || []) { await page.click(sel, { timeout: 3000 }); await page.waitForTimeout(300); }
   await page.waitForTimeout(700); // 出てくる動きが終わるのを待つ
