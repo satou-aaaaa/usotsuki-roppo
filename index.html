@@ -395,7 +395,8 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
 //      （incidents/2026-11-21-hand-copied-helpers-drift.md）。
 //      あわせて、はじめて遊ぶ人への案内（吹き出し Core.coach）を足した。長い「遊び方」の窓の代わりに、練習の1問を遊びながら
 //      その場で一言ずつ教える（NN/g「Mobile Instructional Overlays」・Andersen ほか CHI 2012「The Impact of Tutorials on Games of Varying Complexity」）。
-//   3: 2026-11-22 吹き出しを出しているあいだ 0.4 秒ごとに場所を測り直す（古い場所に残って押す所を隠すことがあった）。ボタンの字を「案内を閉じる」に
+//   3: 2026-11-22 吹き出しを出しているあいだ 0.4 秒ごとに場所を測り直す（古い場所に残って押す所を隠すことがあった）。ボタンの字を「案内を閉じる」に。
+//      段の wait（その所が出るまで待つ）を足した。全ゲームの「はじめての練習」を sync-template の migrateFirstPlay が足すため
 //   2: 2026-11-22 感想フォームのゲーム名を、渡さなければ題（<title>）から入れる。sync-template が全ゲームを game-core に切り替える（migrateCore）ため
 // 決まり: 外へ通信しない。ゲームの関数の名前（toast・buzz など）は上書きしない（Core.toast などで呼ぶ）。
 (function () {
@@ -481,6 +482,7 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
   //   sel   …… 吹き出しを付ける所。まだ画面に無いあいだは待つ（ゲームが画面を作り直しても付け直す）
   //   until …… その所が画面に出たら次へ進む（答えた・正解した など）。無ければ sel を押したら次へ
   //   button …… 押すと次へ進むボタンの字（読むだけの吹き出し）
+  //   wait  …… その所が画面に出るまで、この吹き出しは出さずに待つ（答えたあとにだけ「次へ」を指す など）
   //   pos   …… "below"（既定）か "above"。その側に場所が無ければ、ページを少し動かして場所を空ける（読む所を隠さないため）
   // 吹き出しは押す所を隠さない（上か下の空いたほうに出す）。「案内を閉じる」と Esc でいつでもやめられる。
   const coach = (() => {
@@ -515,7 +517,7 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
       while (steps && i < steps.length && steps[i].until && find(steps[i].until)) i++;
       if (!steps) return;
       if (i >= steps.length) return stop(true);
-      const st = steps[i], el = find(st.sel);
+      const st = steps[i], el = st.wait && !find(st.wait) ? null : find(st.sel);
       if (!el) { box.hidden = true; mark(null); return; }
       box.hidden = false; mark(el);
       const fresh = shown !== i;
