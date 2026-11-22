@@ -388,13 +388,14 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
 // ゲームの共通部品 game-core。ひな形: satou-aaaaa/shared-workflows の template/core/core.js。
 // ゲームでは直さない。index.html の core:begin〜core:end の印のあいだに node scripts/sync-template.mjs <ゲームのフォルダ> で写す
 // （ファイルを足さないので sw.js の SHELL は変えない）。ゲームからは window.Core で使う。
-// 共通部品の版: 2
+// 共通部品の版: 3
 //   1: 2026-11-21 ゲームごとに手で写していた小さな関数を1か所に集めた。40本で同じ役目の関数が何通りにも分かれ
 //      （お知らせの帯 11通り・振動 10通り・文字を安全にする esc 4通り・数の読み込み num 2通り）、
 //      「動きを減らす」でも振動する・お知らせが読み上げられない・num の直し（#410）が22本に届かない・esc が " を変えない、が起きていた
 //      （incidents/2026-11-21-hand-copied-helpers-drift.md）。
 //      あわせて、はじめて遊ぶ人への案内（吹き出し Core.coach）を足した。長い「遊び方」の窓の代わりに、練習の1問を遊びながら
 //      その場で一言ずつ教える（NN/g「Mobile Instructional Overlays」・Andersen ほか CHI 2012「The Impact of Tutorials on Games of Varying Complexity」）。
+//   3: 2026-11-22 吹き出しを出しているあいだ 0.4 秒ごとに場所を測り直す（古い場所に残って押す所を隠すことがあった）。ボタンの字を「案内を閉じる」に
 //   2: 2026-11-22 感想フォームのゲーム名を、渡さなければ題（<title>）から入れる。sync-template が全ゲームを game-core に切り替える（migrateCore）ため
 // 決まり: 外へ通信しない。ゲームの関数の名前（toast・buzz など）は上書きしない（Core.toast などで呼ぶ）。
 (function () {
@@ -481,9 +482,9 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
   //   until …… その所が画面に出たら次へ進む（答えた・正解した など）。無ければ sel を押したら次へ
   //   button …… 押すと次へ進むボタンの字（読むだけの吹き出し）
   //   pos   …… "below"（既定）か "above"。その側に場所が無ければ、ページを少し動かして場所を空ける（読む所を隠さないため）
-  // 吹き出しは押す所を隠さない（上か下の空いたほうに出す）。「案内をとじる」と Esc でいつでもやめられる。
+  // 吹き出しは押す所を隠さない（上か下の空いたほうに出す）。「案内を閉じる」と Esc でいつでもやめられる。
   const coach = (() => {
-    let steps = null, i = 0, opt = {}, box = null, tgt = null, mo = null, raf = 0, shown = -1;
+    let steps = null, i = 0, opt = {}, box = null, tgt = null, mo = null, raf = 0, shown = -1, tick = 0;
     function css() {
       if (doc.getElementById("core-coach-css")) return;
       const s = doc.createElement("style");
@@ -502,7 +503,7 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
     function build() {
       box = doc.createElement("div");
       box.id = "core-coach"; box.setAttribute("role", "dialog"); box.setAttribute("aria-modal", "false"); box.setAttribute("aria-label", "はじめての案内");
-      box.innerHTML = '<p id="core-coach-t"></p><div class="core-coach-row"><span class="core-coach-n" aria-hidden="true"></span><button type="button" class="core-coach-skip">案内をとじる</button><button type="button" class="core-coach-go" hidden></button></div>';
+      box.innerHTML = '<p id="core-coach-t"></p><div class="core-coach-row"><span class="core-coach-n" aria-hidden="true"></span><button type="button" class="core-coach-skip">案内を閉じる</button><button type="button" class="core-coach-go" hidden></button></div>';
       box.querySelector(".core-coach-skip").onclick = () => stop(false);
       box.querySelector(".core-coach-go").onclick = () => advance();
       (doc.body || doc.documentElement).appendChild(box);
@@ -565,6 +566,9 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
       css(); build();
       mo = new MutationObserver(sched); mo.observe(doc.body || doc.documentElement, { childList: true, subtree: true });
       addEventListener("resize", sched); addEventListener("scroll", sched, true);
+      // 見た目だけの変化（開く動き・字の読み込み・あとから出る絵）は上の知らせが来ないことがあるので、出ているあいだは少しずつ測り直す。
+      // 吹き出しが古い場所に残って押す所を隠し、押せなくなっていた（2026-11-22 練習の1問の QA が GitHub の上でだけ止まった）
+      tick = setInterval(sched, 400);
       doc.addEventListener("click", onClick, true); doc.addEventListener("keydown", onKey, true);
       sched();
     }
@@ -575,6 +579,7 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
       steps = null; opt = {};
       if (mo) mo.disconnect(); mo = null;
       removeEventListener("resize", sched); removeEventListener("scroll", sched, true);
+      clearInterval(tick); tick = 0;
       doc.removeEventListener("click", onClick, true); doc.removeEventListener("keydown", onKey, true);
       if (raf) cancelAnimationFrame(raf); raf = 0;
       mark(null);
@@ -647,7 +652,7 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
     }, true);
   }
 
-  window.Core = { v: 2, calm, esc, num, jstNow, today, addDays, prevDay, nextDay, md, dayNo, ymOf, ymAdd, untilNext, streak, say, toast, buzz, saveWarn, coach, feedbackUrl, feedbackInfo, bindFeedback };
+  window.Core = { v: 3, calm, esc, num, jstNow, today, addDays, prevDay, nextDay, md, dayNo, ymOf, ymAdd, untilNext, streak, say, toast, buzz, saveWarn, coach, feedbackUrl, feedbackInfo, bindFeedback };
 })();
 </script>
 <!-- core:end -->
