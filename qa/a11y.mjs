@@ -247,9 +247,13 @@ for (const sc of screens) {
     const noalt = [...document.querySelectorAll("img:not([alt])")].map((el) => el.src.split("/").pop());
     const italic = [...document.querySelectorAll("body *")].filter((el) => getComputedStyle(el).fontStyle === "italic" && /[぀-ヿ一-鿿]/.test([...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join(""))).map((el) => el.tagName.toLowerCase());
     const opener = [...document.querySelectorAll("[data-a11y-open]")].some(vis);
-    return { noname, noalt, italic, opener };
+    // 左下の「Aa」と、ゲームの入口（フッターの「見やすさ」など）が同時に見えていない（同じ働きを二重に出さない・重ねない。v8）
+    const fl = document.querySelector(".a11y-float");
+    const both = !!fl && vis(fl) && [...document.querySelectorAll("[data-a11y-open]")].some((e) => e !== fl && vis(e));
+    return { noname, noalt, italic, opener, both };
   });
   check("見やすさの設定を開くボタンがホームに見えている（data-a11y-open）", r.opener);
+  check("ホームに見やすさの入口が二重に出ていない（ほかの入口が見えているのに左下の「Aa」も出す、を見る。WCAG 2.4.11・3.2.4）", !r.both);
   check("名前の無いボタン・リンクが無い（記号だけのものは aria-label。WCAG 4.1.2）", r.noname.length === 0, r.noname.join(" / "));
   check("絵に alt がある（飾りは alt=\"\"。WCAG 1.1.1）", r.noalt.length === 0, r.noalt.join(","));
   check("斜体の日本語が無い（BDA Dyslexia Style Guide）", r.italic.length === 0, r.italic.join(","));
@@ -289,7 +293,7 @@ for (const sc of screens) {
   // 設定の画面が開き、選んだものが html の印になり、次に開いても残る
   const { ctx, page } = await openPage();
   await dismiss(page);
-  await page.click("[data-a11y-open]");
+  await page.click("[data-a11y-open]:visible");
   const opened = await page.evaluate(() => !!document.querySelector("dialog.a11y-dlg[open]"));
   await page.check('dialog.a11y-dlg input[data-k="read"]');
   await page.check('dialog.a11y-dlg input[data-k="cvd"]');
@@ -320,7 +324,7 @@ for (const sc of screens) {
   // 押せない（隠れている・時間切れ）ときも、例外で止めずに ✗ と数える（2026-11-07 amida-haitatsu #14 の CodeRabbit）
   if (odd) {
     await dismiss(page);
-    odd = await page.click("[data-a11y-open]", { timeout: 3000 })
+    odd = await page.click("[data-a11y-open]:visible", { timeout: 3000 })
       .then(() => page.waitForSelector("dialog.a11y-dlg[open]", { timeout: 2000 }))
       .then(() => true, () => false);
   }
