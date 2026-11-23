@@ -243,6 +243,18 @@ try {
   check("応援のリンクは noopener つき", kofi && kofi.rel.includes("noopener"));
   check("外のスクリプトを読まない（読むのは同じ所の引き継ぎコード transfer.js だけ）", (await page.$$eval("script[src]", (xs) => xs.map((x) => x.getAttribute("src")))).every((s) => s === "transfer.js"));
 
+  // 「戻る」：スマホのブラウザの「戻る」で、ゲームから出ずに本棚へ（共通部品 game-core の Core.screens）
+  { const pb = await browser.newPage({ viewport: { width: 390, height: 800 } });
+    const errB = []; pb.on("pageerror", (e) => errB.push(e.message));
+    await pb.goto(url); const home0 = pb.url(), got = [];
+    for (const [btn, wait] of [[".spine", ".page"], ["#cho", "#chobook"], ["#achbtn", "#achview"], ["#calbtn", "#calview"], ["#go-e", ".page"]]) {
+      await pb.locator(btn).first().click(); await pb.waitForSelector(wait); const h = await pb.evaluate(() => location.hash);
+      await pb.goBack(); await pb.waitForSelector("#shelf", { state: "visible" });
+      got.push({ btn, h, url: pb.url(), home: await pb.isVisible(".spine >> nth=0") });
+    }
+    check("「戻る」：本・封じ帳・実績・カレンダー・とことんから本棚へ戻り、ゲームのページのまま", got.every((g) => g.h.length > 1 && g.url === home0 && g.home) && errB.length === 0, JSON.stringify(got) + errB.join(" / "));
+    await pb.close(); }
+
   // 10. 前の版（classic.html）も開ける
   const p3 = await browser.newPage({ viewport: { width: 390, height: 800 } });
   const err3 = [];
@@ -795,7 +807,8 @@ try {
     check(`${tag}：はじめての人の「はじめに」の巻（民法）が、最初の画面に丸ごと入る`, first && first.top >= 0 && first.bottom <= vh, JSON.stringify(first));
     if (vw >= 390) { const e = await box("#go-e"); check(`${tag}：とことんの大きなボタンが最初の画面に入る`, e && e.bottom <= vh, JSON.stringify(e)); }
     check(`${tag}：本棚で横にはみ出さない`, (await over()) <= 0);
-    const aa = await u.evaluate(() => { const b = document.querySelector("header [data-a11y-open]"), r = b.getBoundingClientRect(); return { pos: getComputedStyle(b).position, top: r.top, floats: document.querySelectorAll(".a11y-float").length }; });
+    // 見やすさ v8 は浮いた「Aa」を作っておき、ほかに入口が無い画面でだけ出す（出ているものだけ数える）
+    const aa = await u.evaluate(() => { const b = document.querySelector("header [data-a11y-open]"), r = b.getBoundingClientRect(); return { pos: getComputedStyle(b).position, top: r.top, floats: [...document.querySelectorAll(".a11y-float")].filter((e) => !e.hidden && e.getClientRects().length).length }; });
     check(`${tag}：見やすさの「Aa」は上の欄に置き、画面の下に浮かせない（本文にかぶらない）`, aa.pos !== "fixed" && aa.top < 160 && aa.floats === 0, JSON.stringify(aa));
     const gaps = await u.evaluate(() => { const r = (s) => document.querySelector(s).getBoundingClientRect(); return [r("#shelf").top - r("#buddy").bottom, r(".mode").top - r("#go-e").bottom, r("#go-e").top - r("#shelf + .hint").bottom]; });
     check(`${tag}：本棚の部品どうしがくっつかない（間が8px以上）`, gaps.every((g) => g >= 8), gaps.map(Math.round).join(","));

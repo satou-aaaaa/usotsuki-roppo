@@ -224,7 +224,7 @@ html.a11y-cvd .slot.out{border-width:2px}
 /* all:unset のボタンでも、キーで選んだときの枠を必ず出す（いちばん最後に強く書く） */
 :is(.btn,.w,.card,.spine,.none,.shiori,button,a):focus-visible{outline:3px solid #fff!important;outline-offset:3px}
 </style>
-<!-- a11y:begin 見やすさの設定 v7（shared-workflows template/a11y/a11y.html の写し。ここでは直さず、ひな形を直して全部のゲームへ写す。drift-check と qa/a11y.mjs が同じ中身か見る） -->
+<!-- a11y:begin 見やすさの設定 v8（shared-workflows template/a11y/a11y.html の写し。ここでは直さず、ひな形を直して全部のゲームへ写す。drift-check と qa/a11y.mjs が同じ中身か見る） -->
 <style id="a11y-css">
 /* だれでも：キーボードで選んだ所に太い枠（WCAG 2.4.7・2.4.13） */
 :is(button,a,input,select,textarea,summary,[tabindex]):focus-visible{outline:3px solid #1a5fd0!important;outline-offset:2px!important;box-shadow:0 0 0 5px #fff!important}
@@ -252,6 +252,9 @@ html:not(.a11y-ruby) ruby.a11y-rb>rt{display:none}
 .a11y-dlg button,.a11y-btn,.a11y-saybtn{min-height:44px;min-width:44px;border-radius:10px;border:2px solid #1d2320;background:#fff;color:#1d2320;font:700 15px/1.2 "BIZ UDPGothic","Hiragino Sans","Yu Gothic UI",Meiryo,sans-serif;padding:0 14px;cursor:pointer;letter-spacing:0}
 .a11y-dlg button.a11y-ok{background:#1d2320;color:#fff}
 .a11y-btn.a11y-float{position:fixed;left:max(8px,env(safe-area-inset-left,0px));bottom:max(8px,env(safe-area-inset-bottom,0px));z-index:2147483000}
+.a11y-btn.a11y-float[hidden]{display:none!important}
+/* 「Aa」が出ているあいだは、いちばん下の物が「Aa」の下に隠れたままにならないよう下をあける（WCAG 2.4.11） */
+html.a11y-floaton body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!important}
 /* 読み上げボタンが、いちばん下のボタン・リンクにかぶらないよう下をあける */
 html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!important}
 .a11y-saybtn{position:fixed;right:max(8px,env(safe-area-inset-right,0px));bottom:max(8px,env(safe-area-inset-bottom,0px));z-index:2147483000;box-shadow:0 2px 8px #0003}
@@ -262,7 +265,7 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
 /* 見やすさの設定（色覚・ディスレクシア・弱視・動きに弱い人のため）。外へは何も送らない。
    設定は localStorage の a11y-v1 に置く。同じサイト（satou-aaaaa.github.io）のゲームは同じ設定を使う。
    ゲームの側でできること：
-   - 設定を開くボタンに data-a11y-open を付ける（無ければ左下に「Aa」のボタンを出す）
+   - 設定を開くボタンに data-a11y-open を付ける（画面に見えている入口が無いあいだだけ、左下に「Aa」のボタンを出す）
    - 読み上げる文に data-a11y-say を付ける（問題文・知らせなど）
    - 色の見分けを助ける形・模様は html.a11y-cvd の下に CSS で書く。JS では A11y.on('cvd')
    - 揺れ・すべる動きを JS で動かすときは、A11y.on('calm') なら止める
@@ -353,11 +356,24 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
       if (!say(sayText())) open();
     });
     document.body.appendChild(sayBtn);
-    if (!document.querySelector("[data-a11y-open]")) {
-      const b = document.createElement("button");
-      b.type = "button"; b.className = "a11y-btn a11y-float"; b.textContent = "Aa"; b.setAttribute("data-a11y-open", ""); b.setAttribute("aria-label", "見やすさの設定");
-      document.body.appendChild(b);
-    }
+    // 左下の「Aa」は、画面に見えている入口（data-a11y-open）がほかに無いときだけ出す。
+    // ゲームの多くはホームのフッターを JS で後から描くので、作った時だけ見ると入口があっても出て、統計の上に重なっていた
+    // （v8。2026-11-22 169本。WCAG 2.4.11 Focus Not Obscured・3.2.4 Consistent Identification。incidents/2026-11-22-a11y-float-over-home.md）
+    const float = document.createElement("button");
+    float.type = "button"; float.className = "a11y-btn a11y-float"; float.textContent = "Aa"; float.setAttribute("data-a11y-open", ""); float.setAttribute("aria-label", "見やすさの設定");
+    float.hidden = true;
+    document.body.appendChild(float);
+    const seen = (e) => e !== float && e.getClientRects().length > 0 && !e.closest("[hidden],dialog:not([open])");
+    let queued = false;
+    const place = () => {
+      queued = false;
+      const need = ![...document.querySelectorAll("[data-a11y-open]")].some(seen);
+      if (float.hidden === need) float.hidden = !need;
+      document.documentElement.classList.toggle("a11y-floaton", need);
+    };
+    const later = () => { if (!queued) { queued = true; requestAnimationFrame(place); } };
+    new MutationObserver(later).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["hidden", "class", "style", "open"] });
+    place();
     document.addEventListener("click", (e) => { const t = e.target.closest && e.target.closest("[data-a11y-open]"); if (t) { e.preventDefault(); open(); } });
     apply();
   };
@@ -388,7 +404,7 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
 // ゲームの共通部品 game-core。ひな形: satou-aaaaa/shared-workflows の template/core/core.js。
 // ゲームでは直さない。index.html の core:begin〜core:end の印のあいだに node scripts/sync-template.mjs <ゲームのフォルダ> で写す
 // （ファイルを足さないので sw.js の SHELL は変えない）。ゲームからは window.Core で使う。
-// 共通部品の版: 3
+// 共通部品の版: 4
 //   1: 2026-11-21 ゲームごとに手で写していた小さな関数を1か所に集めた。40本で同じ役目の関数が何通りにも分かれ
 //      （お知らせの帯 11通り・振動 10通り・文字を安全にする esc 4通り・数の読み込み num 2通り）、
 //      「動きを減らす」でも振動する・お知らせが読み上げられない・num の直し（#410）が22本に届かない・esc が " を変えない、が起きていた
@@ -398,6 +414,10 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
 //   3: 2026-11-22 吹き出しを出しているあいだ 0.4 秒ごとに場所を測り直す（古い場所に残って押す所を隠すことがあった）。ボタンの字を「案内を閉じる」に。
 //      段の wait（その所が出るまで待つ）を足した。全ゲームの「はじめての練習」を sync-template の migrateFirstPlay が足すため
 //   2: 2026-11-22 感想フォームのゲーム名を、渡さなければ題（<title>）から入れる。sync-template が全ゲームを game-core に切り替える（migrateCore）ため
+//   4: 2026-11-23 画面の切り替え（Core.screens）を足した。1ページに全部を縦に積んで見づらくなるのを、単体の HTML のまま
+//      URL の #（例 #kiroku）で画面を分けて止める（routines/ui-rules.md U10〜U12。NN/g「Progressive Disclosure」・Android「Layouts and navigation patterns」）。
+//      <section data-screen="home">〜 を置いたページだけで動く（置いていないゲームでは何もしない）
+//      JS で描き替えるゲームは、画面の関数の最初で Core.screens.mark("dex")、起動時に Core.screens.route({...}, home) で「戻る」がホームへ戻る
 // 決まり: 外へ通信しない。ゲームの関数の名前（toast・buzz など）は上書きしない（Core.toast などで呼ぶ）。
 (function () {
   "use strict";
@@ -593,6 +613,103 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
     return { start, stop, leave, active: () => !!steps, step: () => (steps ? i : -1) };
   })();
 
+  // ---- 画面の切り替え（1つの HTML を # で画面に分ける。routines/ui-rules.md U10〜U12）----
+  // 書き方: <section data-screen="home" data-title="ホーム">…</section><section data-screen="kiroku" data-title="記録" hidden>…</section>
+  //         入口は <a href="#kiroku">記録</a>。戻るボタン・ブラウザの「戻る」で前の画面へ戻る。最初の data-screen がホーム。
+  // 画面が変わると、その画面の最初の見出しへフォーカスを移し（読み上げのため）、上までもどし、"core:screen" を知らせる（detail.id）。
+  // ゲームから: Core.screens.go("kiroku")・Core.screens.now()・Core.screens.list()
+  // screens.js（単体の部品）を先に読んだページでは、それを使う（2回つながない）
+  const screens = window.Screens || (function () {
+    // screens:begin（template/screens/screens.js と同じ中身。check-core が比べる。直すときは両方を同じに）
+    const all = () => (doc.querySelectorAll ? [...doc.querySelectorAll("[data-screen]")] : []);
+    const ids = () => all().map((e) => e.getAttribute("data-screen"));
+    let cur = "";
+    let baseTitle = "";
+    function want() {
+      let h = "";
+      try { h = decodeURIComponent((location.hash || "").slice(1)); } catch (e) { h = ""; }
+      const list = ids();
+      return list.includes(h) ? h : list[0] || "";
+    }
+    function show(id, first) {
+      const list = all();
+      if (!list.length) return;
+      const el = list.find((e) => e.getAttribute("data-screen") === id) || list[0];
+      id = el.getAttribute("data-screen");
+      for (const e of list) e.hidden = e !== el;
+      const t = el.getAttribute("data-title");
+      if (!baseTitle) baseTitle = doc.title;
+      doc.title = t && id !== list[0].getAttribute("data-screen") ? `${t}｜${baseTitle}` : baseTitle;
+      const changed = cur !== id;
+      cur = id;
+      if (!changed || first) { if (changed) fire(id); return; }
+      try { scrollTo(0, 0); } catch (e) { /* 古いブラウザ */ }
+      const h = el.querySelector("h1,h2,[data-screen-focus]");
+      if (h) { if (!h.hasAttribute("tabindex")) h.setAttribute("tabindex", "-1"); try { h.focus({ preventScroll: true }); } catch (e) { /* 無視 */ } }
+      fire(id);
+    }
+    function fire(id) { try { doc.dispatchEvent(new CustomEvent("core:screen", { detail: { id } })); } catch (e) { /* 古いブラウザ */ } }
+    function go(id) {
+      if (!ids().includes(id)) return;
+      if (want() === id) return show(id);
+      location.hash = id === ids()[0] ? "" : id; // ホームは # を付けない（共有したURLがホームになる）
+    }
+    function init() {
+      if (!all().length) return;
+      // ゲームの CSS が section に display を書いていても、隠した画面は出さない
+      const st = doc.createElement("style");
+      st.textContent = "[data-screen][hidden]{display:none!important}";
+      doc.head.appendChild(st);
+      addEventListener("hashchange", () => show(want()));
+      show(want(), true);
+    }
+    if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", init); else init();
+    // ---- JS で描き替える画面（ゲームの帳・カレンダー・実績など）を # と「戻る」につなぐ ----
+    // ゲームは画面を app.innerHTML で描き替えるので、そのままでは「戻る」でゲームから出てしまう。
+    // 使い方: 画面を描く関数の最初で Core.screens.mark("dex")（ホームは mark("")）。起動時に一度
+    //         Core.screens.route({ dex: book, cal: () => cal(), ach: achView }, home)。
+    // 履歴はいつも [ホーム] か [ホーム, #画面] の2つまで（画面から画面へは置き換え、ホームへは戻す）。開き直すとホームから。
+    const views = new Map(); // Map にする（# から来た名前で Object の関数を呼ばない。CodeQL js/unvalidated-dynamic-method-call）
+    let homeFn = null, pushed = false, skipPop = 0, quiet = false;
+    const hashName = () => { try { return decodeURIComponent((location.hash || "").slice(1)); } catch (e) { return ""; } };
+    const bare = () => location.pathname + location.search;
+    // # が画面の名前でないとき（引き継ぎの #hk=… など、ほかの部品の印）は触らない
+    const foreign = () => { const h = hashName(); return !!h && !/^[A-Za-z][\w-]*$/.test(h); };
+    function mark(name) {
+      if (quiet || all().length || !homeFn) return; // data-screen のページ・route の前・戻るで描いている最中は何もしない
+      name = name || "";
+      if (foreign()) return;
+      const now = hashName();
+      if (now === name) return;
+      try {
+        if (!name) {
+          if (pushed) { pushed = false; skipPop++; history.back(); } else history.replaceState(null, "", bare());
+        } else if (!now) { history.pushState(null, "", "#" + encodeURIComponent(name)); pushed = true; }
+        else history.replaceState(null, "", "#" + encodeURIComponent(name));
+      } catch (e) { /* 使えない */ }
+      fire(name || "home");
+    }
+    function onPop() {
+      if (skipPop) { skipPop--; return; }
+      if (foreign()) return;
+      const h = hashName();
+      const fn = (h && views.get(h)) || homeFn;
+      if (!h || !views.has(h)) pushed = false;
+      quiet = true;
+      try { if (fn) fn(); } finally { quiet = false; }
+    }
+    function route(map, home) {
+      if (all().length) return;
+      for (const k of Object.keys(map || {})) if (typeof map[k] === "function") views.set(k, map[k]);
+      // 何度呼んでもよい（ゲームの home() の最初で呼ぶ）。# を消すのは最初の1回だけ（開き直したらホームから。途中の回は続きから出る）
+      if (!homeFn) { addEventListener("popstate", onPop); if (hashName() && !foreign()) try { history.replaceState(null, "", bare()); } catch (e) { /* 使えない */ } }
+      homeFn = home;
+    }
+    return { go, now: () => cur, list: ids, show: (id) => show(id), mark, route };
+    // screens:end
+  })();
+  window.Screens = screens;
+
   // ---- 感想・不具合のフォーム（全ゲームで1つの Googleフォーム。事前入力のリンクでゲーム名と付属情報を入れる）----
   // 送る人が入力するのは「内容」の1か所だけ（必須はそれだけ）。名前・メール・遊んだ記録の中身は入れない。
   // 付属情報はフォームに見える形で入り、送る前に本人が消せる。フォームの entry 番号は Googleフォームの「事前入力した URL を取得」で確かめたもの
@@ -654,7 +771,7 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
     }, true);
   }
 
-  window.Core = { v: 3, calm, esc, num, jstNow, today, addDays, prevDay, nextDay, md, dayNo, ymOf, ymAdd, untilNext, streak, say, toast, buzz, saveWarn, coach, feedbackUrl, feedbackInfo, bindFeedback };
+  window.Core = { v: 4, calm, esc, num, jstNow, today, addDays, prevDay, nextDay, md, dayNo, ymOf, ymAdd, untilNext, streak, say, toast, buzz, saveWarn, coach, feedbackUrl, feedbackInfo, bindFeedback, screens };
 })();
 </script>
 <!-- core:end -->
@@ -955,6 +1072,7 @@ function techFor(b) { const xs = learned(); return xs.includes(ARTS[b.id]) ? ART
 
 // 本棚
 function shelf() {
+  Core.screens.route({}, shelf); Core.screens.mark(""); // スマホの「戻る」でゲームから出ずに本棚へ（共通部品 game-core）
   S = null; frame(); window.scrollTo(0, 0);
   const done = allDone();
   let h = done ? '<div class="panel" id="dawn"><h2>夜明け！</h2><p>六法をすべて取り戻した。村じゅうに灯りがともった。</p></div>'
@@ -1021,6 +1139,7 @@ function words(p) {
 }
 
 function render(turn) {
+  Core.screens.mark("read");
   frame(); if (turn) window.scrollTo(0, 0);
   if (S.mode === "e") S.b = S.list[S.i].book;
   // 下読みの間は巻末の枠を付けない（枠でうそがあると分かってしまう）
@@ -1129,6 +1248,7 @@ function next() {
 // 応援のひとこと：遊び終えて満足したときだけ（巻を初めて取り戻したとき・夜明け）出す。遊ぶ前や途中には出さない
 function ask(id) { return `<p class="ask" id="${id}">楽しめたら、<a href="https://ko-fi.com/satouaaaaa" target="_blank" rel="noopener noreferrer">Ko-fi でコーヒー1杯の応援</a>をもらえると、新しい巻づくりの励みになります（任意・遊ぶのはずっと無料）。</p>`; }
 function fin() {
+  Core.screens.mark("result");
   try { merge(); } catch (e) { /* 読めなくても続ける */ }
   frame(); window.scrollTo(0, 0); // 巻の終わりは上（巻の名前）から見せる（下のほうで「本を閉じる」を押すと、途中から出ていた）
   const b = S.b, n = solvedIn(b), full = n === b.pages.length, lost = S.lost.slice();
@@ -1158,6 +1278,7 @@ function fin() {
 
 // とことんの終わり：直したページ数を自己ベストと比べる（ほかの人との順位は出さない）
 function endFin() {
+  Core.screens.mark("result");
   try { merge(); } catch (e) { /* 読めなくても続ける */ }
   const r = runOk(mem.erun) ? mem.erun : null;
   if (!r || (S && S.mode === "e" && S.eid !== r.id)) return shelf();
@@ -1175,6 +1296,7 @@ function endFin() {
 
 // 封じ帳：封じた魔の一覧（まだのところは「？」）
 function cho() {
+  Core.screens.mark("cho");
   let h = `<div class="panel cho" id="chobook"><h2>封じ帳</h2><p>封じた魔 ${MONS.filter((p) => mem.solved[p.id]).length} / ${MONS.length}</p>`;
   for (const b of BOOKS) {
     h += `<h3>${b.name}の巻</h3><div class="mons">` + b.pages.filter((p) => p.lie >= 0).map((p) => mem.solved[p.id]
@@ -1188,6 +1310,7 @@ function cho() {
 
 // 実績：とれたものは ✓、まだのものは条件と進み具合（いま/目標）
 function achView() {
+  Core.screens.mark("ach");
   const xs = achNow(mem);
   view().innerHTML = `<div class="panel" id="achview"><h2>実績</h2><p>${xs.filter((a) => a.done).length} / ${xs.length}</p><div class="achs">` +
     xs.map((a) => `<div class="ach ${a.done ? "got" : "no"}" data-id="${a.id}"><span class="ic" aria-hidden="true">${a.ic}</span><span><b>${a.name}</b><small>${a.how}</small></span>` +
@@ -1199,6 +1322,7 @@ function achView() {
 // カレンダー：遊んだ日に灯り（読んだページが多いほど明るい）。前の月へ戻れる。休んだ日には何も書かない
 const lvOf = (n) => (n >= 12 ? 3 : n >= 6 ? 2 : n >= 1 ? 1 : 0);
 function calView(ym) {
+  Core.screens.mark("cal");
   const t = today(), now = t.slice(0, 7), played = Object.keys(mem.days).filter((d) => mem.days[d] > 0).sort();
   const first = played.length && played[0].slice(0, 7) < now ? played[0].slice(0, 7) : now;
   if (ym > now) ym = now; if (ym < first) ym = first;
