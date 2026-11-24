@@ -4,7 +4,7 @@
 # Claude Code のクラウドセッションでは .claude/settings.json の SessionStart フックが自動で呼ぶ。
 # CI の Setup check（共通部品）が、まっさらな環境でこれが通るかを確かめる。
 # ひな形: satou-aaaaa/shared-workflows の template/scripts/setup.sh。ゲームはそのまま写せば動く（npm_dir と next だけ、ちがえば書き換える）。
-# ひな形の版: 13（上げたら写しの版も上げる。scripts/drift-check.mjs が古い写しを週次まとめに出す）
+# ひな形の版: 14（上げたら写しの版も上げる。scripts/drift-check.mjs が古い写しを週次まとめに出す）
 #   2: 依存は毎回 npm ci・ブラウザが無ければ止める・このシェルで要る操作（nvm use・export）を最後に出す（shared-workflows incidents/2026-11-03-setup-false-ready.md）
 #   3: nvm.sh を --no-use で読む（.nvmrc の版が入っていないと、読んだだけで何も言わずに止まっていた。incidents/2026-11-04-setup-nvm-silent-stop.md）
 #   4: ブラウザの場所はファイルかも見る（-x だけだとフォルダでも通った。2026-11-05 CodeRabbit が bunshi-tsukuri #1 で指摘）
@@ -23,6 +23,7 @@
 #  12: 起動の試しは package.json に書いた Playwright を先に使う・ブラウザの置き場も QA と同じ import() で探す・
 #      古いロックは自分だけの名前へ移してから消す（2つ同時に外して新しいロックを消さない）・名札の無い1分より古いロックも外す・ほかの人の動いているプロセスのロックは外さない（各ゲームの PR の CodeRabbit、2026-11-07）
 #  13: 古いロックは移さず、外す人の札（.setup-lock.reclaim.<inode>。時間でなく持ち主が動いているかで見る）を取った1人が見直してから消す（移したあいだに別の setup.sh がロックを取り、npm ci が2つ走ることがあった。2026-11-17 hatsuden-kurabe #1・nenkin-shikumi #1 の CodeRabbit）
+#  14: flock が使える所（Linux・クラウドセッション・CI）では、ロックの前に .git の中のファイルを flock で取って順番に並ぶ（mkdir のロックだけでは、2つ同時のときに両方が取れて npm ci が重なることが3回あった。incidents/2026-11-11-setup-lock-flake.md）
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -117,6 +118,12 @@ reclaim() {
   done
   return 1
 }
+# flock があれば、まずそれで並ぶ（OS が持つロックなので、止まった人の分は自動で外れる。mkdir のロックは macOS など flock の無い所のため残す。版14）。
+# 置き場は .git の中（npm ci が消す node_modules に置くと別のファイルを掴み合う・作業ツリーに置くと git status に出る）。SETUP_NO_FLOCK=1 で使わない（検査が mkdir の道も回す）
+if [ -z "${SETUP_NO_FLOCK:-}" ] && command -v flock >/dev/null 2>&1 && gd=$(git rev-parse --absolute-git-dir 2>/dev/null); then
+  exec 8>"$gd/setup-$(printf '%s' "$npm_dir" | tr -c 'A-Za-z0-9' _).flock"
+  flock -w 600 8 || fail "ほかの setup.sh が10分終わらない（$gd の setup-*.flock を持つプロセスを確かめる）"
+fi
 for _ in $(seq 1 600); do
   if mkdir "$lock" 2>/dev/null; then echo "$me" > "$lock/owner"; got=1; break; fi
   if o=$(stale) && [ -n "$o" ] && reclaim "$o"; then continue; fi
@@ -131,6 +138,7 @@ else
   echo "$sum" > "$stamp"
 fi
 rm -f "$lock/owner"; rmdir "$lock" 2>/dev/null || true
+{ exec 8>&-; } 2>/dev/null || true   # flock を返す（開いていなければ何もしない）
 trap - EXIT   # 返したあとは、あとから来た setup.sh のロックを終わりに消さない
 
 # Playwright のブラウザ。検査は CHROMIUM_PATH があればそれを、無ければ Playwright の置き場のものを使う
