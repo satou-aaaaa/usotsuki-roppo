@@ -241,6 +241,9 @@ for (const sc of screens) {
 {
   const { ctx, page } = await openPage();
   await dismiss(page);
+  // 左下の「Aa」は、DOM が変わったあとの次の描画（requestAnimationFrame）で出し入れする。混んだ CI では、その前に数えて
+  // 「二重」と誤って落ちた（2026-11-23 otoku-dotchi #10・bousai-handan #20。手元では通る）。2回分の描画を待ってから数える
+  await page.evaluate(() => new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok))));
   const r = await page.evaluate(() => {
     const vis = (el) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.height > 0 && getComputedStyle(el).visibility !== "hidden"; };
     const noname = [...document.querySelectorAll("button,a[href],[role=button]")].filter(vis).filter((el) => !(el.getAttribute("aria-label") || el.getAttribute("title") || el.textContent.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}‍️\s]/gu, "")) && !el.querySelector("img[alt]:not([alt=''])")).map((el) => el.outerHTML.slice(0, 60));
