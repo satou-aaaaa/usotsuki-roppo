@@ -224,7 +224,7 @@ html.a11y-cvd .slot.out{border-width:2px}
 /* all:unset のボタンでも、キーで選んだときの枠を必ず出す（いちばん最後に強く書く） */
 :is(.btn,.w,.card,.spine,.none,.shiori,button,a):focus-visible{outline:3px solid #fff!important;outline-offset:3px}
 </style>
-<!-- a11y:begin 見やすさの設定 v8（shared-workflows template/a11y/a11y.html の写し。ここでは直さず、ひな形を直して全部のゲームへ写す。drift-check と qa/a11y.mjs が同じ中身か見る） -->
+<!-- a11y:begin 見やすさの設定 v9（shared-workflows template/a11y/a11y.html の写し。ここでは直さず、ひな形を直して全部のゲームへ写す。drift-check と qa/a11y.mjs が同じ中身か見る） -->
 <style id="a11y-css">
 /* だれでも：キーボードで選んだ所に太い枠（WCAG 2.4.7・2.4.13） */
 :is(button,a,input,select,textarea,summary,[tabindex]):focus-visible{outline:3px solid #1a5fd0!important;outline-offset:2px!important;box-shadow:0 0 0 5px #fff!important}
@@ -260,6 +260,15 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
 .a11y-saybtn{position:fixed;right:max(8px,env(safe-area-inset-right,0px));bottom:max(8px,env(safe-area-inset-bottom,0px));z-index:2147483000;box-shadow:0 2px 8px #0003}
 .a11y-saybtn[hidden],.a11y-dlg [hidden]{display:none!important}
 .a11y-note{font-size:13px!important}
+/* 選ぶ行（文字の大きさ・音など。v9）：横に並ぶ大きなボタン。選んだものは濃く */
+.a11y-dlg fieldset{border:0;border-top:1px solid #1d232022;margin:0;padding:8px 4px 10px;min-width:0}
+.a11y-dlg legend{padding:6px 0 4px;float:left;width:100%;line-height:1.4}
+.a11y-dlg legend small{display:block;font-size:13px;color:#3d4440}
+.a11y-dlg .a11y-opts{clear:both;display:flex;gap:6px}
+.a11y-dlg .a11y-opts label{flex:1;border:2px solid #1d2320;border-radius:10px;min-height:44px;padding:0 6px;justify-content:center;gap:6px;font-weight:700}
+.a11y-dlg .a11y-opts label:has(input:checked){background:#1d2320;color:#fff}
+.a11y-dlg .a11y-opts label:focus-within{outline:3px solid #1a5fd0;outline-offset:2px}
+.a11y-dlg .a11y-opts input{width:18px;height:18px;margin:0;accent-color:#1a5fd0;flex:none}
 </style>
 <script id="a11y-script">
 /* 見やすさの設定（色覚・ディスレクシア・弱視・動きに弱い人のため）。外へは何も送らない。
@@ -270,7 +279,14 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
    - 色の見分けを助ける形・模様は html.a11y-cvd の下に CSS で書く。JS では A11y.on('cvd')
    - 揺れ・すべる動きを JS で動かすときは、A11y.on('calm') なら止める
    - 設定が変わると document に a11ychange が届く
-   - 設定の印は html の class「a11y-<設定の名前>」（a11y-read など）。部品の class はこれと重ならない名前にする（2026-11-05 a11y-say がボタンとぶつかった） */
+   - 設定の印は html の class「a11y-<設定の名前>」（a11y-read など）。部品の class はこれと重ならない名前にする（2026-11-05 a11y-say がボタンとぶつかった）
+   v9（2026-11-26）：選ぶ行（CHOICES）を足した。いまは「文字の大きさ」（小・中・大。全ゲーム共通）と「音」（なし・小・ふつう。音のあるゲームだけ出る）と「長く遊んだら知らせる」（kiroku のあるゲームだけ出る）。
+   - 文字の大きさは html の class a11y-fs1〜3。ゲームが自分で html.a11y-fs1〜3 の大きさを CSS に書いていればそれを使い、
+     書いていなければ html の文字の大きさを 0.9 倍・1.2 倍にする（rem で書いた所が大きくなる。WCAG 1.4.4・Game Accessibility Guidelines「文字の大きさを変えられる」）。
+     前のゲームごとの設定（〇〇-fs）は A11y.fsFrom("〇〇-fs", 既定の値) で引き継ぐ（共通の設定をまだ選んでいなければ、その値を使う）
+   - 音は Web Audio の出口（AudioContext の destination）に音量のつまみを1つはさむので、ゲームの側は何もしなくてよい
+     （WCAG 1.4.2 Audio Control・Xbox Accessibility Guideline 105）。音量は A11y.get("vol")（0 なし・1 小・2 ふつう）
+   - 選ぶ行を足すときは CHOICES に1行足す（名前・見出し・説明・選択肢・既定の値・出す条件） */
 (() => {
   const KEY = "a11y-v1";
   const root = document.documentElement;
@@ -281,6 +297,14 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
     ["say", "読み上げのボタンを出す", "問題や知らせを声で読む（端末の中の声だけ）"],
     ["ruby", "ふりがなを出す", "むずかしい漢字に読みを付ける"],
   ];
+  // 選ぶ行：[名前, 見出し, 説明, [[値, 字], …], 既定の値, 出す条件（無ければいつも）]
+  const CHOICES = [
+    ["fs", "文字の大きさ", "画面の文字を小さく・大きく", [[1, "小"], [2, "中"], [3, "大"]], 2],
+    ["vol", "音", "効果音の大きさ", [[0, "なし"], [1, "小"], [2, "ふつう"]], 2, () => hasSound()],
+    // 長く遊んだら知らせる（分。0 は知らせない）。数えて知らせるのは共通部品 kiroku（template/kiroku/kiroku.js）。60 分は厚生労働省「情報機器作業における労働衛生管理のためのガイドライン」
+    ["rest", "長く遊んだら知らせる", "続けて遊んだ時間で、ひと休みをすすめる", [[0, "知らせない"], [30, "30分"], [60, "60分"], [90, "90分"]], 60, () => !!window.Kiroku],
+  ];
+  const CH = Object.fromEntries(CHOICES.map((c) => [c[0], c]));
   const media = (q) => { try { return matchMedia(q).matches; } catch { return false; } };
   // 保存した値がオブジェクトでなければ（別のページが書いた・手で直した）無かったことにする（2026-11-05 CodeRabbit：true が入ると設定が開けなくなる）
   const load = () => { try { const v = JSON.parse(localStorage.getItem(KEY) || "{}"); return v && typeof v === "object" && !Array.isArray(v) ? v : {}; } catch { return {}; } };
@@ -289,6 +313,57 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
   let unsaved = {};
   // 決めていないものは端末の設定に合わせる（視差効果を減らす → 動きを減らす）
   const on = (k) => (k in S ? !!S[k] : k === "calm" ? media("(prefers-reduced-motion: reduce)") : false);
+  // 選ぶ行の今の値（選択肢にない値・壊れた値は既定の値）
+  const get = (k) => { const c = CH[k]; if (!c) return on(k); const v = S[k]; return c[3].some(([x]) => x === v) ? v : k === "fs" ? oldFs() : c[4]; };
+  // 前のゲームごとの文字の大きさ（1〜3）を引き継ぐ。共通の設定をまだ選んでいなければ、その値（無ければゲームの既定の値）を使う
+  let fsKey = null, fsDef = 2;
+  const oldFs = () => { if (fsKey) { try { const v = +localStorage.getItem(fsKey); if (v >= 1 && v <= 3) return v; } catch { /* 読めない */ } } return fsDef; };
+  const fs = () => get("fs");
+  // ゲームから一度だけ：A11y.fsFrom("〇〇-fs", 既定の値)。前のキーを覚えて、今の大きさを効かせ、その値を返す
+  const fsFrom = (k, d) => { fsKey = k || null; fsDef = d === 1 || d === 3 ? d : 2; applyFs(); return fs(); };
+
+  // ---- 文字の大きさ ----
+  const FS_RATE = { 1: 0.9, 2: 1, 3: 1.2 };
+  // ゲームが自分で html.a11y-fs1〜3 の大きさを書いているか（書いていればこちらは倍にしない）
+  const ownFs = () => [...document.querySelectorAll("style:not(#a11y-css)")].some((t) => t.textContent.includes(".a11y-fs"));
+  const applyFs = () => {
+    const v = fs();
+    for (const n of [1, 2, 3]) root.classList.toggle("a11y-fs" + n, n === v);
+    if (root.dataset.a11yFs) { root.style.removeProperty("font-size"); delete root.dataset.a11yFs; }
+    if (v === 2 || ownFs()) return;
+    const base = parseFloat(getComputedStyle(root).fontSize) || 16;
+    root.style.setProperty("font-size", Math.round(base * FS_RATE[v] * 100) / 100 + "px");
+    root.dataset.a11yFs = String(v);
+  };
+
+  // ---- 音 ----
+  // Web Audio の出口に音量のつまみ（GainNode）を1つはさむ。ゲームが ctx.destination へつなぐと、つまみを通って鳴る
+  const VOL = [0, 0.35, 1];
+  const ctxs = [];
+  const level = () => VOL[get("vol")];
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const proto = AC && (window.BaseAudioContext ? BaseAudioContext.prototype : AC.prototype);
+    const d = proto && Object.getOwnPropertyDescriptor(proto, "destination");
+    if (d && d.get && d.configurable) {
+      Object.defineProperty(proto, "destination", { configurable: true, enumerable: d.enumerable, get() {
+        const real = d.get.call(this);
+        if (!(this instanceof AC)) return real; // 音を書き出すだけの OfflineAudioContext は変えない
+        let e = ctxs.find((x) => x.c === this);
+        if (!e) { const g = this.createGain(); g.gain.value = level(); g.connect(real); e = { c: this, g }; ctxs.push(e); }
+        return e.g;
+      } });
+    }
+  } catch { /* Web Audio の無い端末 */ }
+  // <audio>・<video> は「なし」のとき消音にする
+  const applyVol = () => {
+    const v = level();
+    for (const e of ctxs) { try { e.g.gain.cancelScheduledValues(0); } catch { /* 古い端末 */ } e.g.gain.value = v; } // 止まっている AudioContext でもすぐ効くよう値を直に入れる
+    for (const m of document.querySelectorAll("audio,video")) m.muted = v === 0;
+  };
+  // 音を使うページか（Web Audio・<audio>・<video> を使っている）。音の無いゲームでは「音」の行を出さない
+  const hasSound = () => ctxs.length > 0 || !!document.querySelector("audio,video") ||
+    [...document.scripts].some((t) => t.id !== "a11y-script" && /AudioContext|new Audio\(/.test(t.textContent));
   let fontLoaded = false;
   const loadFont = () => {
     if (fontLoaded) return; fontLoaded = true;
@@ -301,16 +376,17 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
   };
   const apply = () => {
     for (const [k] of OPTS) root.classList.toggle("a11y-" + k, on(k));
+    applyFs(); applyVol();
     if (on("read")) loadFont();
     if (sayBtn) sayBtn.hidden = !on("say");
     if (!on("say")) stop();
   };
   const set = (k, v) => {
-    unsaved[k] = !!v;
+    unsaved[k] = CH[k] ? v : !!v;
     S = { ...S, ...load(), ...unsaved }; // 別のタブで変えた設定を消さないよう、書く前に読み直す（保存できていない変更はこちらを残す）
     try { localStorage.setItem(KEY, JSON.stringify(S)); unsaved = {}; } catch { /* 保存できなくても今の画面には効かせる */ }
     apply();
-    document.dispatchEvent(new CustomEvent("a11ychange", { detail: { key: k, on: !!v } }));
+    document.dispatchEvent(new CustomEvent("a11ychange", { detail: CH[k] ? { key: k, on: !!v, value: get(k) } : { key: k, on: !!v } }));
   };
 
   // 読み上げ：端末の中の日本語の声だけを使う（外へ文字を送る声は使わない）
@@ -336,11 +412,15 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
     dlg.className = "a11y-dlg";
     dlg.setAttribute("aria-labelledby", "a11y-h");
     const hasRuby = !!document.querySelector("ruby.a11y-rb");
-    dlg.innerHTML = `<h2 id="a11y-h">見やすさ・読みやすさ</h2><p>ほかのゲームにも同じ設定が使われます。文字は2本の指で広げると大きくなります。</p>` +
+    dlg.innerHTML = `<h2 id="a11y-h">見やすさ・読みやすさ</h2><p>ほかのゲームにも同じ設定が使われます。</p>` +
+      CHOICES.map(([k, n, d, opts]) => `<fieldset data-c="${k}"><legend>${n}<small>${d}</small></legend><div class="a11y-opts">` +
+        opts.map(([v, t]) => `<label><input type="radio" name="a11y-${k}" data-c="${k}" value="${v}">${t}</label>`).join("") + `</div></fieldset>`).join("") +
       OPTS.filter(([k]) => k !== "ruby" || hasRuby).map(([k, n, d]) => `<label><input type="checkbox" data-k="${k}"><span>${n}<small>${d}</small></span></label>`).join("") +
       `<p class="a11y-note" id="a11y-novoice" hidden>この端末には、外へ送らずに読める日本語の声がありません。</p><div class="a11y-row"><button type="button" class="a11y-ok" data-a11y-close>閉じる</button></div>`;
     document.body.appendChild(dlg);
     dlg.addEventListener("change", (e) => {
+      const c = e.target.dataset && e.target.dataset.c;
+      if (c) return set(c, +e.target.value);
       const k = e.target.dataset && e.target.dataset.k;
       if (!k) return;
       set(k, e.target.checked);
@@ -381,6 +461,8 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
     if (!dlg) build();
     lastFocus = document.activeElement;
     for (const c of dlg.querySelectorAll("input[data-k]")) c.checked = on(c.dataset.k);
+    for (const c of dlg.querySelectorAll("input[data-c]")) c.checked = +c.value === get(c.dataset.c);
+    for (const [k, , , , , show] of CHOICES) dlg.querySelector(`fieldset[data-c="${k}"]`).hidden = !!show && !show();
     dlg.querySelector("#a11y-novoice").hidden = !(on("say") && !voice());
     if (dlg.showModal) dlg.showModal(); else dlg.setAttribute("open", "");
   };
@@ -395,7 +477,9 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
     if (mq.addEventListener) mq.addEventListener("change", follow); else if (mq.addListener) mq.addListener(follow);
   } catch { /* matchMedia の無い端末 */ }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", build); else build();
-  window.A11y = { on, set, open, say, stop };
+  // 別のタブ・別のゲームで設定を変えたら、こちらにも効かせる
+  addEventListener("storage", (e) => { if (e.key === KEY) { S = { ...load(), ...unsaved }; apply(); } });
+  window.A11y = { on, get, set, fs, fsFrom, open, say, stop };
 })();
 </script>
 <!-- a11y:end -->
@@ -404,7 +488,7 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
 // ゲームの共通部品 game-core。ひな形: satou-aaaaa/shared-workflows の template/core/core.js。
 // ゲームでは直さない。index.html の core:begin〜core:end の印のあいだに node scripts/sync-template.mjs <ゲームのフォルダ> で写す
 // （ファイルを足さないので sw.js の SHELL は変えない）。ゲームからは window.Core で使う。
-// 共通部品の版: 4
+// 共通部品の版: 7
 //   1: 2026-11-21 ゲームごとに手で写していた小さな関数を1か所に集めた。40本で同じ役目の関数が何通りにも分かれ
 //      （お知らせの帯 11通り・振動 10通り・文字を安全にする esc 4通り・数の読み込み num 2通り）、
 //      「動きを減らす」でも振動する・お知らせが読み上げられない・num の直し（#410）が22本に届かない・esc が " を変えない、が起きていた
@@ -418,6 +502,12 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
 //      URL の #（例 #kiroku）で画面を分けて止める（routines/ui-rules.md U10〜U12。NN/g「Progressive Disclosure」・Android「Layouts and navigation patterns」）。
 //      <section data-screen="home">〜 を置いたページだけで動く（置いていないゲームでは何もしない）
 //      JS で描き替えるゲームは、画面の関数の最初で Core.screens.mark("dex")、起動時に Core.screens.route({...}, home) で「戻る」がホームへ戻る
+//   5: 2026-11-27 全ゲームで同じ場所（ページのいちばん上の右）に「？ 遊び方」を置く（Core.help）。止まるような不具合が起きたら
+//      ページの上に帯を出し、本人が「知らせる」を押したときだけ感想フォームが開く（Core.errBar）。エラーの文は保存も自動送信もしない
+//      （satou さん 2026-11-27「個人データ・個人情報をとらない」。外のサーバーへ自動で送ると IP が必ず届くため、自動の通知と集計は作らない）。
+//      MDN「Window: error event」「unhandledrejection event」・NN/g「Error-Message Guidelines」（何が起きたか・どうすればよいかを書く）
+//   7: 2026-11-27 Ko-fi 応援の一文（Core.kofi）と応援先（Core.KOFI）を足した。201本が同じ一文を手で写し、文言が4通り以上に分かれていた
+//      （incidents/2026-11-27-kofi-line-hand-copied.md）。出す条件（初めて・まちがい0・練習でない日だけ）はゲームの記録しだいなので、ゲームに残す
 // 決まり: 外へ通信しない。ゲームの関数の名前（toast・buzz など）は上書きしない（Core.toast などで呼ぶ）。
 (function () {
   "use strict";
@@ -494,6 +584,13 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
     b.id = "savewarn"; b.setAttribute("role", "alert"); b.textContent = SAVE_W;
     b.style.cssText = "position:sticky;top:0;z-index:9999;padding:8px 12px;background:#fff3cd;color:#000;font-size:15px;line-height:1.5;text-align:center;pointer-events:none;border-bottom:2px solid #8a6d00";
     (doc.body || doc.documentElement).prepend(b);
+  }
+
+  // ---- Ko-fi の応援（任意。押すまで外へは通信しない）----
+  // 結果の画面に出す一文。lead は「楽しめたら」「役に立ったら」など、what は「新しいゲームづくり」など（ゲームの中身に合わせて渡す）
+  const KOFI = "https://ko-fi.com/satouaaaaa";
+  function kofi(lead, what) {
+    return `<p class="note kofi">${esc(lead || "楽しめたら")}、<a href="${KOFI}" target="_blank" rel="noopener">Ko-fi でコーヒー1杯の応援</a>をもらえると、${esc(what || "新しいゲームづくり")}の励みになります（任意・遊ぶのはずっと無料）。</p>`;
   }
 
   // ---- はじめての案内（吹き出し）----
@@ -773,10 +870,252 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
     }, true);
   }
 
-  window.Core = { v: 4, calm, esc, num, jstNow, today, addDays, prevDay, nextDay, md, dayNo, ymOf, ymAdd, untilNext, streak, say, toast, buzz, saveWarn, coach, feedbackUrl, feedbackInfo, bindFeedback, screens };
+  // ---- 遊び方の「？」（全ゲームで同じ場所：ページのいちばん上の右。NN/g「Help and Documentation」：いつでも同じ所から開ける）----
+  // ページの上に 52px の場所を空けて置く（浮かせないので、押せる所を隠さない。routines/ui-rules.md U1）。
+  // 押すと、ゲームの openHow()（無ければフッターの #f-how、それも無ければ dialog#howto）を開く。遊び方の無いページには出さない。
+  function helpOpen() {
+    try {
+      if (typeof window.openHow === "function") { window.openHow(); return true; }
+      const d = doc.getElementById("howto");
+      if (d && d.tagName === "DIALOG") { if (!d.open) { if (d.showModal) d.showModal(); else d.setAttribute("open", ""); } return true; }
+      const f = doc.getElementById("f-how");
+      if (f) { f.click(); return true; }
+    } catch (e) { setTimeout(() => { throw e; }); }
+    return false;
+  }
+  const helpHas = () => typeof window.openHow === "function" || !!doc.getElementById("howto") || !!doc.getElementById("f-how");
+  function help() {
+    if (doc.getElementById("core-help") || !doc.body || !helpHas()) return;
+    if (!doc.getElementById("core-help-css")) {
+      const s = doc.createElement("style");
+      s.id = "core-help-css";
+      s.textContent = "html.core-helpon{padding-top:52px}"
+        + "#core-help{position:absolute;top:4px;right:max(8px,env(safe-area-inset-right,0px));z-index:50;display:inline-flex;align-items:center;gap:4px;min-height:44px;min-width:44px;padding:0 12px;border-radius:22px;border:2px solid #1d2320;background:#fff;color:#1d2320;font:700 15px/1 system-ui,sans-serif;cursor:pointer}"
+        + "#core-help b{font-size:18px}"
+        + "html.a11y-dark #core-help{background:#22282a;color:#eceae4;border-color:#eceae4}"
+        + "#core-err{margin:0;padding:8px 12px;background:#fff3cd;color:#000;border-bottom:2px solid #8a6d00;font:500 15px/1.5 system-ui,sans-serif}"
+        + "#core-err p{margin:0 0 6px}#core-err .core-err-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}"
+        + "#core-err a,#core-err button{display:inline-flex;align-items:center;min-height:44px;min-width:44px;padding:0 14px;border-radius:10px;border:2px solid #000;background:#fff;color:#000;font:700 15px/1 system-ui,sans-serif;text-decoration:none;cursor:pointer}";
+      (doc.head || doc.documentElement).appendChild(s);
+    }
+    const b = doc.createElement("button");
+    b.type = "button"; b.id = "core-help"; b.setAttribute("aria-label", "遊び方");
+    b.innerHTML = "<b aria-hidden=\"true\">？</b><span aria-hidden=\"true\">遊び方</span>";
+    b.addEventListener("click", helpOpen);
+    doc.body.appendChild(b);
+    doc.documentElement.classList.add("core-helpon");
+  }
+
+  // ---- 止まるような不具合の帯（本人が押したときだけ知らせる）----
+  // このページの script のエラーだけを拾う（拡張機能・別のサイトの script の「Script error.」は数えない）。1回開くごとに1度だけ出す。
+  // 帯は流れの中に置く（浮かせない）。「知らせる」で感想フォーム（不具合）を開く。付属情報は送る前に本人が見て消せる。何も自動では送らない
+  let errShown = false;
+  function mine(e) {
+    if (!e) return false;
+    if (e.type === "unhandledrejection") return true;
+    if (!e.message || /^Script error\.?$/i.test(e.message)) return false;
+    if (/ResizeObserver loop/i.test(e.message)) return false; // 画面の描き直しの知らせで、動きは止まらない
+    const f = e.filename || "";
+    try { return !f || new URL(f, location.href).origin === location.origin; } catch (x) { return false; }
+  }
+  function errBar() {
+    if (errShown || !doc.body) return;
+    errShown = true;
+    const d = doc.createElement("div");
+    d.id = "core-err"; d.setAttribute("role", "alert");
+    d.innerHTML = "<p>うまく動かない所がありました。ページを開き直すと直ることがあります。</p>"
+      + "<div class=\"core-err-row\"><a data-feedback=\"bug\" target=\"_blank\" rel=\"noopener\">不具合を知らせる</a><button type=\"button\">閉じる</button></div>";
+    const a = d.querySelector("a");
+    a.href = feedbackUrl({ kind: "bug" });
+    a.addEventListener("click", () => { a.href = feedbackUrl({ kind: "bug" }); });
+    d.querySelector("button").addEventListener("click", () => d.remove());
+    doc.body.prepend(d);
+  }
+  try {
+    addEventListener("error", (e) => { if (e instanceof ErrorEvent && mine(e)) setTimeout(errBar, 0); });
+    addEventListener("unhandledrejection", (e) => { if (mine(e)) setTimeout(errBar, 0); });
+  } catch (e) { /* 古いブラウザ */ }
+  // ゲームが遊び方の窓を後から作ることがあるので、読み終えてから置く
+  if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", () => setTimeout(help, 0)); else setTimeout(help, 0);
+
+  window.Core = { v: 7, calm, esc, num, jstNow, today, addDays, prevDay, nextDay, md, dayNo, ymOf, ymAdd, untilNext, streak, say, toast, buzz, saveWarn, coach, feedbackUrl, feedbackInfo, bindFeedback, screens, help: helpOpen, errBar, kofi, KOFI };
 })();
 </script>
 <!-- core:end -->
+<!-- kiroku:begin（template/kiroku/kiroku.js の写し。ここでは直さない。node scripts/sync-template.mjs で写す） -->
+<script id="game-kiroku">
+// ゲームの共通部品 kiroku（成績のまとめ・更新のお知らせ・長く遊んだら知らせる）。ひな形: satou-aaaaa/shared-workflows の template/kiroku/kiroku.js。
+// ゲームでは直さない。index.html の kiroku:begin〜kiroku:end の印のあいだに node scripts/sync-template.mjs <ゲームのフォルダ> で写す。
+// ゲームからは window.Kiroku で使う。外へは何も送らない（端末の localStorage だけ。2026-11-26 satou さん「個人データはとらない」）。
+// 版: 1（2026-11-26）
+//   成績：ホームを描くたびに Kiroku.note(() => ({ s, tally, ach })) で、このゲームの成績のまとめ（遊んだ日・正解・続けた日・自己ベスト・実績）を
+//         kiroku-v1 に書く。同じサイト（satou-aaaaa.github.io）の全ゲームで1つを共有するので、フッターの「成績」から全部のゲームの成績が同じ形で見られる。
+//   お知らせ：ゲームが新しくなったとき、画面の下に一度だけ「ここが変わりました」を出す（画面のいちばん上に、ほかの物に重ねずに出す。閉じるまで残る。読み上げにも届く。WCAG 4.1.3 Status Messages）。
+//         全ゲーム共通の知らせは下の COMMON_NEWS、ゲームだけの知らせは index.html の script 要素（type は application/json、id は game-news）に [{"d":"2026-11-26","t":"…"}] を書く。
+//         はじめて遊ぶ人には出さない（見たことにする）。どこまで見たかは news-v1。
+//   長く遊んだら知らせる：見やすさの設定「長く遊んだら知らせる」（A11y.get("rest")。既定 60 分・切れる）の時間だけ遊んだら、ホームに戻った区切りで一度だけ知らせる。
+//         画面に触った・キーを押したあとの2分間だけを遊んだ時間として数え、画面が隠れているあいだは数えない（LAST TELL の「長く遊んだら、ひと息」と同じ数え方）。
+//         時間は保存しない。60 分は厚生労働省「情報機器作業における労働衛生管理のためのガイドライン」（2019）の「一連続作業時間が1時間を超えないように」に合わせた。
+(function () {
+  "use strict";
+  if (window.Kiroku && window.Kiroku.v) return;
+  const doc = document;
+  const KEY = "kiroku-v1", NEWS = "news-v1";
+  // 全ゲーム共通の知らせ（新しいものを上に。日付は日本時間の YYYY-MM-DD）
+  const COMMON_NEWS = [
+    { d: "2026-11-26", t: "「見やすさ」から、文字の大きさ（小・中・大）と、長く遊んだら知らせる時間を選べるようになりました。どのゲームにも同じ設定が使われます。フッターの「成績」で、遊んだゲームの成績をまとめて見られます。" },
+  ];
+  const read = (k) => { try { const v = JSON.parse(localStorage.getItem(k) || "{}"); return v && typeof v === "object" && !Array.isArray(v) ? v : {}; } catch (e) { return {}; } };
+  const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } };
+  const n0 = (v) => (window.Core ? Core.num(v) : Math.max(0, Math.floor(+v) || 0));
+  // HTML に入れる文字は必ずここを通す（Core が無いページでも < " などを替える。2026-11-26 CodeQL「DOM text reinterpreted as HTML」）
+  const ESC = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+  const esc = (t) => String(t == null ? "" : t).replace(/[&<>"']/g, (c) => ESC[c]);
+  const today = () => (window.Core ? Core.today() : new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10));
+  // このゲームの名前（URL の最初の段。手元で開いたときは local）と題
+  const id = () => (location.pathname.split("/").filter(Boolean)[0] || "local").replace(/[^\w-]/g, "");
+  const title = () => { const h = doc.querySelector("h1"); return ((h && h.textContent) || doc.title || id()).replace(/\s+/g, " ").trim().slice(0, 40); };
+
+  // ---- 成績 ----
+  let noted = false;
+  function note(fn) {
+    let o = {};
+    try { o = (typeof fn === "function" ? fn() : fn) || {}; } catch (e) { o = {}; }
+    const s = o.s && typeof o.s === "object" ? o.s : {}, t = o.tally && typeof o.tally === "object" ? o.tally : {};
+    const days = s.days && typeof s.days === "object" ? s.days : {};
+    const r = {
+      name: title(),
+      played: n0(t.played != null ? t.played : t.days != null ? t.days : Object.keys(days).length),
+      solved: t.solved != null ? n0(t.solved) : null,
+      streak: window.Core ? Core.streak(days) : 0,
+      best: s.ebest != null ? n0(s.ebest) : t.ebest != null ? n0(t.ebest) : null,
+      ach: Array.isArray(o.ach) && o.ach.length === 2 ? [n0(o.ach[0]), n0(o.ach[1])] : null,
+      last: today(),
+    };
+    const fresh = r.played === 0 && !r.solved && !r.best;
+    if (!fresh) { const all = read(KEY); all[id()] = r; write(KEY, all); }
+    if (!noted) { noted = true; news(fresh); }
+    atHome();
+  }
+  function rows() {
+    const all = read(KEY), me = id();
+    return Object.entries(all).filter(([k, r]) => /^[\w-]+$/.test(k) && r && typeof r === "object")
+      .sort(([a, x], [b, y]) => (a === me ? -1 : b === me ? 1 : String(y.last || "").localeCompare(String(x.last || ""))));
+  }
+  const cell = (v) => (v == null ? "—" : esc(v));
+  let dlg = null, lastFocus = null;
+  function open() {
+    if (!dlg) {
+      dlg = doc.createElement("dialog");
+      dlg.className = "kiroku-dlg"; dlg.setAttribute("aria-labelledby", "kiroku-h");
+      doc.body.appendChild(dlg);
+      dlg.addEventListener("click", (e) => { if (e.target.closest("[data-kiroku-close]")) close(); });
+      dlg.addEventListener("close", () => { if (lastFocus && lastFocus.focus) lastFocus.focus(); });
+    }
+    const rs = rows(), me = id();
+    dlg.innerHTML = `<h2 id="kiroku-h">成績</h2><p>この端末で遊んだゲームの成績です。外へは送りません。</p>` +
+      (rs.length ? `<div class="kiroku-wrap"><table><caption class="kiroku-cap">遊んだゲーム ${rs.length}本</caption><thead><tr><th scope="col">ゲーム</th><th scope="col">遊んだ日</th><th scope="col">正解</th><th scope="col">続けた日</th><th scope="col">自己ベスト</th><th scope="col">実績</th><th scope="col">最後</th></tr></thead><tbody>` +
+        rs.map(([k, r]) => `<tr${k === me ? ' class="kiroku-me"' : ""}><th scope="row">${k === me || k === "local" ? cell(r.name) : `<a href="../${esc(k)}/">${cell(r.name)}</a>`}</th><td data-l="遊んだ日">${cell(r.played)}</td><td data-l="正解">${cell(r.solved)}</td><td data-l="続けた日">${cell(r.streak)}</td><td data-l="自己ベスト">${cell(r.best)}</td><td data-l="実績">${r.ach ? `${r.ach[0]}/${r.ach[1]}` : "—"}</td><td data-l="最後">${r.last ? esc(String(r.last).slice(5).replace("-", "/")) : "—"}</td></tr>`).join("") +
+        `</tbody></table></div>` : `<p>まだ記録がありません。1回遊ぶと、ここに出ます。</p>`) +
+      `<div class="kiroku-row"><button type="button" class="kiroku-ok" data-kiroku-close>閉じる</button></div>`;
+    lastFocus = doc.activeElement;
+    if (dlg.showModal) dlg.showModal(); else dlg.setAttribute("open", "");
+    if (window.Core && Core.say) Core.say(`成績。遊んだゲーム ${rs.length}本`);
+  }
+  function close() { if (!dlg) return; if (dlg.close) dlg.close(); else { dlg.removeAttribute("open"); if (lastFocus && lastFocus.focus) lastFocus.focus(); } }
+  // フッターに「成績」を足す（ゲームはフッターを JS で何度も描き直すので、描き直すたびに足す。ゲームの footer() の文字は変えない）
+  function addEntry() {
+    for (const f of doc.querySelectorAll("footer")) {
+      if (f.querySelector("[data-kiroku-open]")) continue;
+      const a = doc.createElement("a");
+      a.href = "#"; a.setAttribute("data-kiroku-open", ""); a.textContent = "成績";
+      const after = f.querySelector("[data-a11y-open]");
+      if (after) after.after(a); else f.appendChild(a);
+    }
+  }
+
+  // ---- 知らせの帯（お知らせ・長く遊んだら）。1つずつ、閉じるまで画面の下に出す ----
+  const queue = [];
+  let bar = null;
+  function show(text, done) {
+    queue.push([text, done]);
+    if (!bar || !bar.isConnected) next();
+  }
+  function next() {
+    const it = queue.shift();
+    if (bar) { bar.remove(); bar = null; }
+    if (!it) return;
+    bar = doc.createElement("div");
+    bar.className = "kiroku-bar"; bar.setAttribute("role", "status");
+    const p = doc.createElement("p"), btn = doc.createElement("button");
+    p.textContent = it[0]; btn.type = "button"; btn.textContent = "わかった"; // 知らせの文は文字として入れる（HTML として読まない）
+    bar.append(p, btn);
+    btn.addEventListener("click", () => { try { it[1] && it[1](); } catch (e) { /* 書けない */ } next(); });
+    doc.body.prepend(bar); // 画面のいちばん上に、ほかの物に重ねずに出す（押す所を隠さない。WCAG 2.4.11）
+  }
+
+  // ---- お知らせ ----
+  function gameNews() {
+    try { const e = doc.getElementById("game-news"); const v = e ? JSON.parse(e.textContent) : []; return Array.isArray(v) ? v : []; } catch (e) { return []; }
+  }
+  const ok = (x) => x && typeof x === "object" && /^\d{4}-\d{2}-\d{2}$/.test(x.d) && typeof x.t === "string" && x.t;
+  function news(fresh) {
+    const seen = read(NEWS), me = id();
+    const cn = COMMON_NEWS.filter(ok), gn = gameNews().filter(ok);
+    const newest = (l) => l.reduce((m, x) => (x.d > m ? x.d : m), "");
+    const mark = () => { const s = read(NEWS); if (cn.length) s["*"] = newest(cn) > (s["*"] || "") ? newest(cn) : s["*"]; if (gn.length) s[me] = newest(gn) > (s[me] || "") ? newest(gn) : s[me]; write(NEWS, s); };
+    if (fresh) return mark(); // はじめて遊ぶ人には出さない
+    const list = [...cn.filter((x) => x.d > (seen["*"] || "")), ...gn.filter((x) => x.d > (seen[me] || ""))].sort((a, b) => b.d.localeCompare(a.d)).slice(0, 3);
+    if (!list.length) return;
+    show(`新しくなりました：${list.map((x) => x.t).join(" ")}`, mark);
+  }
+
+  // ---- 長く遊んだら知らせる ----
+  let playMs = 0, lastIn = -1e9, restDone = false, homeSeen = 0;
+  const limit = () => { try { return window.A11y && A11y.get ? +A11y.get("rest") || 0 : 60; } catch (e) { return 60; } };
+  ["pointerdown", "keydown", "wheel", "touchstart"].forEach((t) => addEventListener(t, () => { lastIn = performance.now(); }, { passive: true, capture: true }));
+  function restMsg() { const m = limit(); return m >= 60 && m % 60 === 0 ? `${m / 60}時間` : `${m}分`; }
+  function restCheck(force) {
+    const m = limit();
+    if (restDone || !m || playMs < m * 6e4) return;
+    // 区切り（ホームに戻ったとき）で出す。ホームを描かないゲームでは、時間になったら出す。区切りが来なくても10分すぎたら出す
+    if (!force && homeSeen && playMs < (m + 10) * 6e4) return;
+    restDone = true;
+    show(`${restMsg()}遊びました。目を休めて、ひと休みしませんか（「見やすさ」で時間を変えたり、切ったりできます）。`);
+  }
+  function atHome() { homeSeen++; restCheck(true); }
+  setInterval(() => { if (!doc.hidden && performance.now() - lastIn < 120000) playMs += 10000; restCheck(false); }, 10000);
+
+  // ---- 見た目 ----
+  const css = doc.createElement("style");
+  css.id = "kiroku-css";
+  css.textContent = `.kiroku-dlg{max-width:min(640px,calc(100vw - 32px));width:100%;box-sizing:border-box;border:2px solid #1d2320;border-radius:14px;padding:18px 16px 14px;background:#fffdf8;color:#1d2320;font:500 16px/1.6 "BIZ UDPGothic","Hiragino Sans","Yu Gothic UI",Meiryo,sans-serif}
+.kiroku-dlg::backdrop{background:#0008}.kiroku-dlg:not([open]){display:none}
+.kiroku-dlg h2{font-size:19px;margin:0 0 4px;line-height:1.4}.kiroku-dlg p{margin:4px 0 10px;font-size:14px;color:#3d4440}
+.kiroku-wrap{overflow-x:auto;max-height:60vh}.kiroku-dlg table{border-collapse:collapse;width:100%;font-size:14px}
+.kiroku-cap{text-align:left;font-size:13px;color:#3d4440;padding-bottom:4px}
+.kiroku-dlg th,.kiroku-dlg td{border-top:1px solid #1d232033;padding:8px 6px;text-align:right;white-space:nowrap}
+.kiroku-dlg th[scope=row],.kiroku-dlg thead th:first-child{text-align:left;white-space:normal;min-width:7em}
+.kiroku-dlg a{color:#1a4fb0;min-height:44px;display:inline-flex;align-items:center}
+footer [data-kiroku-open]{min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:center}
+.kiroku-me{background:#f1ead8}
+@media (max-width:540px){.kiroku-dlg thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}.kiroku-dlg tr{display:block;border-top:1px solid #1d232033;padding:6px 4px}.kiroku-dlg th[scope=row]{display:block;border:0;padding:4px 2px}.kiroku-dlg td{display:inline-block;border:0;padding:2px 8px 2px 2px;text-align:left}.kiroku-dlg td::before{content:attr(data-l) " ";color:#3d4440;font-size:12px}}
+.kiroku-row{display:flex;justify-content:flex-end;margin-top:12px}
+.kiroku-dlg button,.kiroku-bar button{min-height:44px;min-width:44px;border-radius:10px;border:2px solid #1d2320;background:#1d2320;color:#fff;font:700 15px/1.2 "BIZ UDPGothic","Hiragino Sans","Yu Gothic UI",Meiryo,sans-serif;padding:0 14px;cursor:pointer}
+.kiroku-bar{position:relative;z-index:5;margin:8px auto;width:min(560px,calc(100% - 32px));box-sizing:border-box;display:flex;gap:10px;align-items:center;padding:10px 12px;border:2px solid #1d2320;border-radius:12px;background:#fffdf8;color:#1d2320;font:500 15px/1.6 "BIZ UDPGothic","Hiragino Sans","Yu Gothic UI",Meiryo,sans-serif}
+.kiroku-bar p{margin:0;flex:1}`;
+  (doc.head || doc.documentElement).appendChild(css);
+
+  function start() {
+    addEntry();
+    new MutationObserver(() => addEntry()).observe(doc.body, { childList: true, subtree: true });
+    doc.addEventListener("click", (e) => { const t = e.target.closest && e.target.closest("[data-kiroku-open]"); if (t) { e.preventDefault(); open(); } });
+  }
+  if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", start); else start();
+  window.Kiroku = { v: 1, note, open, close, rows, news: () => news(false), show, playMinutes: () => Math.floor(playMs / 6e4) };
+})();
+</script>
+<!-- kiroku:end -->
 <!-- 引き継ぎコード（shared-workflows template/transfer.js の写し）。ゲームの script より前に置く -->
 <script src="transfer.js" data-game="usotsuki-roppo" data-keys="roppo-seal-v1"></script>
 </head>
