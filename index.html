@@ -413,7 +413,7 @@ html.a11y-dark :is(button,a,input,select,textarea,summary,[tabindex]):focus-visi
   const flip = (c) => { const [L, C, H] = oklch(c); return rgb([Math.min(0.94, Math.max(0.17, 1.1 - L)), C * 0.85, H]); };
   const over = (t, b) => { const a = t[3] + b[3] * (1 - t[3]); return a === 0 ? [0, 0, 0, 0] : [0, 1, 2].map((i) => (t[i] * t[3] + b[i] * b[3] * (1 - t[3])) / a).concat(a); };
     const SKIP = "svg,canvas,img,video,picture,iframe,.a11y-dlg,[data-a11y-keepcolor]";
-  let changed = new Map(); // 要素 → 変える前の { prop: [値, 優先] }
+  let changed = new Map(); // 要素 → 変える前の値と優先（prop ごと。{ prop: [値, 優先] } の形）の表
   const put = (el, prop, val) => {
     let o = changed.get(el); if (!o) { o = {}; changed.set(el, o); }
     if (!(prop in o)) o[prop] = [el.style.getPropertyValue(prop), el.style.getPropertyPriority(prop)];
