@@ -6,6 +6,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="description" content="ねじれ文字に書き換えられた六法の本を、1ページずつ直して札に封じる学習ゲーム。">
+<!-- ogp（sync-template の migrateOgp が足した。og.png を作ったら og:image と twitter:card を summary_large_image に替える） -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="うそつき六法">
+<meta property="og:description" content="ねじれ文字に書き換えられた六法の本を、1ページずつ直して札に封じる学習ゲーム。">
+<meta property="og:url" content="https://satou-aaaaa.github.io/usotsuki-roppo/">
+<meta property="og:image" content="https://satou-aaaaa.github.io/usotsuki-roppo/icon-512.png">
+<meta property="og:image:alt" content="うそつき六法">
+<meta property="og:locale" content="ja_JP">
+<meta name="twitter:card" content="summary">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0d1030">
 <link rel="icon" href="icon-192.png">
@@ -224,7 +233,7 @@ html.a11y-cvd .slot.out{border-width:2px}
 /* all:unset のボタンでも、キーで選んだときの枠を必ず出す（いちばん最後に強く書く） */
 :is(.btn,.w,.card,.spine,.none,.shiori,button,a):focus-visible{outline:3px solid #fff!important;outline-offset:3px}
 </style>
-<!-- a11y:begin 見やすさの設定 v9（shared-workflows template/a11y/a11y.html の写し。ここでは直さず、ひな形を直して全部のゲームへ写す。drift-check と qa/a11y.mjs が同じ中身か見る） -->
+<!-- a11y:begin 見やすさの設定 v10（shared-workflows template/a11y/a11y.html の写し。ここでは直さず、ひな形を直して全部のゲームへ写す。drift-check と qa/a11y.mjs が同じ中身か見る） -->
 <style id="a11y-css">
 /* だれでも：キーボードで選んだ所に太い枠（WCAG 2.4.7・2.4.13） */
 :is(button,a,input,select,textarea,summary,[tabindex]):focus-visible{outline:3px solid #1a5fd0!important;outline-offset:2px!important;box-shadow:0 0 0 5px #fff!important}
@@ -269,6 +278,13 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
 .a11y-dlg .a11y-opts label:has(input:checked){background:#1d2320;color:#fff}
 .a11y-dlg .a11y-opts label:focus-within{outline:3px solid #1a5fd0;outline-offset:2px}
 .a11y-dlg .a11y-opts input{width:18px;height:18px;margin:0;accent-color:#1a5fd0;flex:none}
+/* 暗い画面（v10）：設定の画面と「Aa」「🔊 読む」も暗くする（白地に黒と同じ 14:1 前後） */
+html.a11y-dark .a11y-dlg{background:#1c2124;color:#eceae4;border-color:#eceae4}
+html.a11y-dark .a11y-dlg p,html.a11y-dark .a11y-dlg label small,html.a11y-dark .a11y-dlg legend small{color:#c3c8cb}
+html.a11y-dark .a11y-dlg label,html.a11y-dark .a11y-dlg fieldset{border-top-color:#eceae433}
+html.a11y-dark .a11y-dlg button,html.a11y-dark .a11y-btn,html.a11y-dark .a11y-saybtn,html.a11y-dark .a11y-dlg .a11y-opts label{background:#262c30;color:#eceae4;border-color:#eceae4}
+html.a11y-dark .a11y-dlg button.a11y-ok,html.a11y-dark .a11y-dlg .a11y-opts label:has(input:checked){background:#eceae4;color:#1c2124}
+html.a11y-dark :is(button,a,input,select,textarea,summary,[tabindex]):focus-visible{outline-color:#8ab4ff!important;box-shadow:0 0 0 5px #000!important}
 </style>
 <script id="a11y-script">
 /* 見やすさの設定（色覚・ディスレクシア・弱視・動きに弱い人のため）。外へは何も送らない。
@@ -286,7 +302,12 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
      前のゲームごとの設定（〇〇-fs）は A11y.fsFrom("〇〇-fs", 既定の値) で引き継ぐ（共通の設定をまだ選んでいなければ、その値を使う）
    - 音は Web Audio の出口（AudioContext の destination）に音量のつまみを1つはさむので、ゲームの側は何もしなくてよい
      （WCAG 1.4.2 Audio Control・Xbox Accessibility Guideline 105）。音量は A11y.get("vol")（0 なし・1 小・2 ふつう）
-   - 選ぶ行を足すときは CHOICES に1行足す（名前・見出し・説明・選択肢・既定の値・出す条件） */
+   - 選ぶ行を足すときは CHOICES に1行足す（名前・見出し・説明・選択肢・既定の値・出す条件）
+   v10（2026-11-27）：「画面の明るさ」（自動・明るい・暗い）。自動は端末のダークモード（prefers-color-scheme）に合わせる。暗いときは html に a11y-dark。
+   - ゲームごとの色を書き直さずに暗くする（下の「暗い画面」）。:root の色の変数と決め打ちの明るい地の明るさを裏返し（OKLCH の L。色合いは残すので色覚の見分けは崩さない）、
+     字がうしろと 4.5:1（大きい字は 3:1）に足りなければ足りるまで明るくする（WCAG 1.4.3。web.dev「prefers-color-scheme」・Chrome「Dark mode」の指針）。
+   - 色を変えたくない所は data-a11y-keepcolor を付ける。ゲームが自分で html.a11y-dark の色を CSS に書いてもよい（書いた色の上でも字の濃さは合わせる）
+   - A11y.dark() で今が暗い画面か分かる。canvas に描く色はゲームの側で A11y.dark() を見て変える */
 (() => {
   const KEY = "a11y-v1";
   const root = document.documentElement;
@@ -300,6 +321,7 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
   // 選ぶ行：[名前, 見出し, 説明, [[値, 字], …], 既定の値, 出す条件（無ければいつも）]
   const CHOICES = [
     ["fs", "文字の大きさ", "画面の文字を小さく・大きく", [[1, "小"], [2, "中"], [3, "大"]], 2],
+    ["theme", "画面の明るさ", "自動は端末のダークモードの設定に合わせる", [[0, "自動"], [1, "明るい"], [2, "暗い"]], 0],
     ["vol", "音", "効果音の大きさ", [[0, "なし"], [1, "小"], [2, "ふつう"]], 2, () => hasSound()],
     // 長く遊んだら知らせる（分。0 は知らせない）。数えて知らせるのは共通部品 kiroku（template/kiroku/kiroku.js）。60 分は厚生労働省「情報機器作業における労働衛生管理のためのガイドライン」
     ["rest", "長く遊んだら知らせる", "続けて遊んだ時間で、ひと休みをすすめる", [[0, "知らせない"], [30, "30分"], [60, "60分"], [90, "90分"]], 60, () => !!window.Kiroku],
@@ -364,6 +386,122 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
   // 音を使うページか（Web Audio・<audio>・<video> を使っている）。音の無いゲームでは「音」の行を出さない
   const hasSound = () => ctxs.length > 0 || !!document.querySelector("audio,video") ||
     [...document.scripts].some((t) => t.id !== "a11y-script" && /AudioContext|new Audio\(/.test(t.textContent));
+  // ---- 暗い画面（v10）----
+  // 1) :root・html に書いた色の変数のうち、明るい地の色と、暗い無彩色（字の色）の明るさを裏返す（OKLCH の L。色合いとあざやかさは残す）
+  // 2) 決め打ちの明るい地（#fff・明るいグラデーション）を、同じ色合いの暗い地にする
+  // 3) 字の色が、うしろの色（親の opacity も重ねる）と 4.5:1（大きい字は 3:1）に足りなければ、足りるまで明るくする
+  // あざやかなボタンの地（朱・藍など）と白い字はそのまま。絵・svg・canvas・設定の画面は変えない。変えたものは覚えておき、やめたら元に戻す。
+  // 画面が描き変わったら次の描画の前にもう一度合わせる（ゲームの transition で遅れて変わる地のため、変えたものがあれば 0.4 秒後にも）
+
+  const toLin = (v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+  const toSrgb = (v) => { const x = v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055; return Math.round(Math.min(1, Math.max(0, x)) * 255); };
+  const oklch = ([r, g, b]) => {
+    r = toLin(r); g = toLin(g); b = toLin(b);
+    const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b), m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b), s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+    const A = 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s, B = 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s;
+    return [0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s, Math.hypot(A, B), Math.atan2(B, A)];
+  };
+  const rgb = ([L, C, H]) => {
+    const A = C * Math.cos(H), B = C * Math.sin(H);
+    const l = (L + 0.3963377774 * A + 0.2158037573 * B) ** 3, m = (L - 0.1055613458 * A - 0.0638541728 * B) ** 3, s = (L - 0.0894841775 * A - 1.291485548 * B) ** 3;
+    return [toSrgb(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s), toSrgb(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s), toSrgb(-0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s)];
+  };
+  const lum = (c) => 0.2126 * toLin(c[0]) + 0.7152 * toLin(c[1]) + 0.0722 * toLin(c[2]);
+  const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  const parse = (c) => { const m = String(c).match(/rgba?\(([^)]+)\)/); if (!m) return null; const p = m[1].split(/[,/\s]+/).filter(Boolean).map(Number); return [p[0], p[1], p[2], p.length > 3 ? p[3] : 1]; };
+  const css = (c, a) => (a == null || a >= 1 ? `rgb(${c[0]},${c[1]},${c[2]})` : `rgba(${c[0]},${c[1]},${c[2]},${a})`);
+  const flip = (c) => { const [L, C, H] = oklch(c); return rgb([Math.min(0.94, Math.max(0.17, 1.1 - L)), C * 0.85, H]); };
+  const over = (t, b) => { const a = t[3] + b[3] * (1 - t[3]); return a === 0 ? [0, 0, 0, 0] : [0, 1, 2].map((i) => (t[i] * t[3] + b[i] * b[3] * (1 - t[3])) / a).concat(a); };
+    const SKIP = "svg,canvas,img,video,picture,iframe,.a11y-dlg,[data-a11y-keepcolor]";
+  let changed = new Map(); // 要素 → 変える前の { prop: [値, 優先] }
+  const put = (el, prop, val) => {
+    let o = changed.get(el); if (!o) { o = {}; changed.set(el, o); }
+    if (!(prop in o)) o[prop] = [el.style.getPropertyValue(prop), el.style.getPropertyPriority(prop)];
+    if (el.style.getPropertyValue(prop) !== val) { el.style.setProperty(prop, val, "important"); count++; }
+  };
+  let probe = null;
+  const colorOf = (raw) => { if (!probe) { probe = document.createElement("i"); probe.hidden = true; } probe.style.color = ""; probe.style.color = raw; if (!probe.style.color) return null; (document.body || root).appendChild(probe); const c = parse(getComputedStyle(probe).color); probe.remove(); return c; };
+  function vars() {
+    const names = new Set();
+    const walk = (rules) => { for (const r of rules) { if (r.cssRules && !r.selectorText) { try { walk(r.cssRules); } catch (e) { /* 読めない */ } continue; } if (r.selectorText && /(^|,)\s*(:root|html)\s*(,|$)/.test(r.selectorText)) for (const n of r.style) if (n.startsWith("--")) names.add(n); } };
+    for (const sh of document.styleSheets) { try { walk(sh.cssRules); } catch (e) { /* 別のサイトの CSS は読めない */ } }
+    for (const n of names) {
+      const raw = getComputedStyle(root).getPropertyValue(n).trim();
+      if (!raw || /var\(|gradient|url\(/.test(raw)) continue;
+      const c = colorOf(raw); if (!c || c[3] === 0) continue;
+      const [L, C] = oklch(c);
+      if (L > 0.7 || (L < 0.5 && C < 0.05)) put(root, n, css(flip(c), c[3]));
+    }
+  }
+  // うしろの不透明な色（無ければ null。うしろが絵なら測れないので null）
+  function backOf(el) {
+    let acc = [0, 0, 0, 0];
+    for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
+      const s = getComputedStyle(n), b = parse(s.backgroundColor);
+      if (s.backgroundImage !== "none" && n !== document.body && n !== root) return null;
+      if (b && b[3] > 0) { acc = over(acc, b); if (acc[3] >= 0.98) return acc; }
+    }
+    return over(acc, [18, 21, 24, 1]);
+  }
+  function grounds() {
+    for (const el of [document.body, ...document.querySelectorAll("body *")]) {
+      if (el.closest(SKIP) || el.id === "core-help") continue;
+      const s = getComputedStyle(el), b = parse(s.backgroundColor);
+      if (b && b[3] > 0.05 && oklch(b)[0] > 0.7) put(el, "background-color", css(flip(b), b[3]));
+      const g = s.backgroundImage;
+      if (g && g !== "none" && !/url\(/.test(g) && /gradient/.test(g)) {
+        const stops = (g.match(/rgba?\([^)]+\)/g) || []).map(parse).filter(Boolean);
+        if (stops.length && stops.reduce((t, c) => t + oklch(c)[0], 0) / stops.length > 0.7) put(el, "background-image", g.replace(/rgba?\([^)]+\)/g, (m) => { const c = parse(m); return css(flip(c), c[3]); }));
+      }
+    }
+  }
+  function texts() {
+    for (const el of document.querySelectorAll("body *")) {
+      if (el.closest(SKIP)) continue;
+      if (![...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) continue;
+      const s = getComputedStyle(el), fg = parse(s.color), bg = backOf(el);
+      if (!fg || !bg) continue;
+      const size = parseFloat(s.fontSize), need = (size >= 24 || (+s.fontWeight >= 700 && size >= 18.66) ? 3 : 4.5) + 0.2;
+      // 親の opacity も重ねて見る（薄くした字は、薄くしたぶん明るくする）
+      let op = 1; for (let n = el; n && n !== root; n = n.parentElement) op *= +getComputedStyle(n).opacity;
+      if (op < 0.2) continue;
+      const seen = (c) => over([c[0], c[1], c[2], fg[3] * op], bg);
+      if (ratio(seen(fg), bg) >= need) continue;
+      let [L, C, H] = oklch(fg); const up = oklch(bg)[0] < 0.6;
+      let c = fg;
+      for (let i = 0; i < 60 && ratio(seen(c), bg) < need; i++) { L = up ? Math.min(1, L + 0.02) : Math.max(0, L - 0.02); if (L >= 1 || L <= 0) C *= 0.7; c = rgb([L, C, H]); }
+      put(el, "color", css(c, fg[3]));
+    }
+  }
+  let darkOn = false, mo = null, queued = false, busy = false;
+  // 地の色を変えると、ゲームの transition（.15s など）で少し遅れて暗くなる。変えたものがあれば、動きが終わったころにもう一度合わせる
+  let count = 0, again = 0;
+  const run = () => {
+    queued = false; if (!darkOn) return; busy = true;
+    const before = count;
+    try { grounds(); texts(); } finally { mo && mo.takeRecords(); busy = false; }
+    if (count > before && again < 3) { again++; setTimeout(later, 400); } else again = 0;
+  };
+  const later = () => { if (!queued && !busy) { queued = true; requestAnimationFrame(run); } };
+  function darkStart() {
+    if (darkOn) return; darkOn = true;
+    root.classList.add("a11y-dark");
+    put(root, "color-scheme", "dark");
+    vars(); run();
+    mo = new MutationObserver(later);
+    mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "hidden", "open"] });
+  }
+  function darkStop() {
+    if (!darkOn) return; darkOn = false;
+    if (mo) mo.disconnect(); mo = null;
+    for (const [el, o] of changed) for (const p in o) { if (o[p][0]) el.style.setProperty(p, o[p][0], o[p][1]); else el.style.removeProperty(p); }
+    changed = new Map();
+    root.classList.remove("a11y-dark");
+  }
+  
+  // 今は暗い画面か（自動は端末の設定）
+  const dark = () => { const t = get("theme"); return t === 2 || (t === 0 && media("(prefers-color-scheme: dark)")); };
+  const applyTheme = () => { if (!document.body) return; if (dark()) darkStart(); else darkStop(); };
   let fontLoaded = false;
   const loadFont = () => {
     if (fontLoaded) return; fontLoaded = true;
@@ -376,7 +514,7 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
   };
   const apply = () => {
     for (const [k] of OPTS) root.classList.toggle("a11y-" + k, on(k));
-    applyFs(); applyVol();
+    applyFs(); applyVol(); applyTheme();
     if (on("read")) loadFont();
     if (sayBtn) sayBtn.hidden = !on("say");
     if (!on("say")) stop();
@@ -476,10 +614,16 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
     const follow = () => { if (!("calm" in S)) { apply(); const c = dlg && dlg.querySelector('input[data-k="calm"]'); if (c) c.checked = on("calm"); document.dispatchEvent(new CustomEvent("a11ychange", { detail: { key: "calm", on: on("calm") } })); } };
     if (mq.addEventListener) mq.addEventListener("change", follow); else if (mq.addListener) mq.addListener(follow);
   } catch { /* matchMedia の無い端末 */ }
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", build); else build();
+  // 端末のダークモードを開いたあとに変えても効かせる（「自動」のときだけ）
+  try {
+    const mq = matchMedia("(prefers-color-scheme: dark)");
+    const follow = () => { if (get("theme") === 0) { applyTheme(); document.dispatchEvent(new CustomEvent("a11ychange", { detail: { key: "theme", on: dark(), value: 0 } })); } };
+    if (mq.addEventListener) mq.addEventListener("change", follow); else if (mq.addListener) mq.addListener(follow);
+  } catch { /* matchMedia の無い端末 */ }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => { build(); applyTheme(); }); else build();
   // 別のタブ・別のゲームで設定を変えたら、こちらにも効かせる
   addEventListener("storage", (e) => { if (e.key === KEY) { S = { ...load(), ...unsaved }; apply(); } });
-  window.A11y = { on, get, set, fs, fsFrom, open, say, stop };
+  window.A11y = { on, get, set, fs, fsFrom, open, say, stop, dark };
 })();
 </script>
 <!-- a11y:end -->
@@ -488,7 +632,7 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
 // ゲームの共通部品 game-core。ひな形: satou-aaaaa/shared-workflows の template/core/core.js。
 // ゲームでは直さない。index.html の core:begin〜core:end の印のあいだに node scripts/sync-template.mjs <ゲームのフォルダ> で写す
 // （ファイルを足さないので sw.js の SHELL は変えない）。ゲームからは window.Core で使う。
-// 共通部品の版: 7
+// 共通部品の版: 8
 //   1: 2026-11-21 ゲームごとに手で写していた小さな関数を1か所に集めた。40本で同じ役目の関数が何通りにも分かれ
 //      （お知らせの帯 11通り・振動 10通り・文字を安全にする esc 4通り・数の読み込み num 2通り）、
 //      「動きを減らす」でも振動する・お知らせが読み上げられない・num の直し（#410）が22本に届かない・esc が " を変えない、が起きていた
@@ -508,6 +652,12 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
 //      MDN「Window: error event」「unhandledrejection event」・NN/g「Error-Message Guidelines」（何が起きたか・どうすればよいかを書く）
 //   7: 2026-11-27 Ko-fi 応援の一文（Core.kofi）と応援先（Core.KOFI）を足した。201本が同じ一文を手で写し、文言が4通り以上に分かれていた
 //      （incidents/2026-11-27-kofi-line-hand-copied.md）。出す条件（初めて・まちがい0・練習でない日だけ）はゲームの記録しだいなので、ゲームに残す
+//   8: 2026-11-27 SNS への共有（Core.share）を足した。結果のシェア（X・LINE・端末の共有・コピー）は約200本に同じ5行を手で写していたのを1か所に集め、
+//      フッターの「共有」（data-share）からゲームそのものも共有できるようにした（satou さん「全ゲームに SNS 共有」「共通化も」）。
+//      X は公式の Web Intent（docs.x.com「Web Intent」: https://x.com/intent/tweet?text=）、LINE は LINE URL スキーム
+//      （developers.line.biz「LINE URLスキームでLINEの機能を使う」: https://line.me/R/share?text=）、端末の共有は Web Share API
+//      （MDN「Navigator: share()」: 押したその場でだけ呼ぶ・やめたら AbortError）。共有する文は公開の URL（? と # を外す）とゲームの名前・結果だけ
+//      （遊ぶ人の名前・引き継ぎの #hk=・記録の中身は入れない）。どれも押した人が自分で開くリンクで、外へ勝手に送らない
 // 決まり: 外へ通信しない。ゲームの関数の名前（toast・buzz など）は上書きしない（Core.toast などで呼ぶ）。
 (function () {
   "use strict";
@@ -809,6 +959,101 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
   })();
   window.Screens = screens;
 
+  // ---- SNS への共有（X・LINE・端末の共有・コピー）----
+  // 結果の画面: <div class="shares"><a id="toX" …>Xで投稿</a><a id="toLine" …>LINEで送る</a><button id="copy">コピー</button></div> と
+  //            <button id="share">結果をシェア</button> を描いたあとで Core.share.wire(文)。文には SITE（公開の URL）を含める（ハッシュタグは Core が足す）
+  // ゲームそのもの: フッターなどに <a href="#" data-share>共有</a>。押すと共有の窓（端末の共有・X・LINE・リンクをコピー）が開く
+  // ゲームから: Core.share.links(文) → { x, line }・Core.share.copy(文)・Core.share.send(文)・Core.share.open(文)・Core.share.url()
+  const TITLE0 = doc.title || "";
+  const share = (() => {
+    const X = "https://x.com/intent/tweet?text=", LINE = "https://line.me/R/share?text=";
+    // 公開の URL だけ（? と # は外す。引き継ぎの #hk=・画面の名前・記録を外へ出さない）
+    const url = () => {
+      const m = doc.querySelector ? doc.querySelector('meta[property="og:url"]') : null;
+      if (m && /^https:\/\//.test(m.content || "")) return m.content; // 公開の URL（OGP に書いたもの）
+      try { return location.origin + location.pathname.replace(/index\.html$/, ""); } catch (e) { return ""; }
+    };
+    // ゲームの名前：og:title、無ければ開いたときの題（画面の切り替えで「記録｜…」になる前のもの）
+    const name = () => { const m = doc.querySelector ? doc.querySelector('meta[property="og:title"]') : null; return String((m && m.content) || TITLE0 || doc.title || "").trim(); };
+    const gameText = () => `「${name()}」無料・登録なしで遊べます\n${url()}`;
+    // ハッシュタグ：ゲームの名前＋全ゲーム共通の「学べる無料ゲーム」の2つ。
+    // X のヘルプ「How to use hashtags」は1つの投稿に2つまでをすすめる。タグに使えない字（空白・？・・ など）は外す（× は「バツ」）。
+    // satou さん 2026-11-27「ハッシュタグもつけて、検索しやすいように」
+    // ゲーム一覧ページの題「学べる無料ゲーム一覧」から。ゲームにはサークル名を出さない（satou さん 2026-11-24。check-core が見る）
+    const TAG_ALL = "学べる無料ゲーム";
+    const tagOf = (s) => String(s || "").split(/[：:｜|]/)[0].replace(/×/g, "バツ").replace(/[^\p{L}\p{N}\p{M}_ー]/gu, "").slice(0, 30);
+    function tags() {
+      const g = tagOf(name());
+      return [g && !/^\d+$/.test(g) && g !== TAG_ALL ? g : "", TAG_ALL].filter(Boolean).map((x) => "#" + x).join(" ");
+    }
+    // 文の最後にタグを1行足す（もう付いていれば足さない）
+    const tagged = (t) => { t = String(t); return t.includes("#" + TAG_ALL) ? t : `${t.replace(/\s+$/, "")}\n${tags()}`; };
+    const links = (t) => { t = tagged(t); return { x: X + encodeURIComponent(t), line: LINE + encodeURIComponent(t) }; };
+    function copy(t) {
+      t = tagged(t);
+      const done = () => toast("コピーしました"), fail = () => toast("コピーできませんでした");
+      try { if (navigator.clipboard && navigator.clipboard.writeText) return void navigator.clipboard.writeText(String(t)).then(done, fail); } catch (e) { /* 使えない */ }
+      fail();
+    }
+    // 端末の共有メニュー（スマホ）。無い・使えないときはコピー。やめた（AbortError）ときは何もしない
+    function send(t) {
+      t = tagged(t);
+      if (!navigator.share) return copy(t);
+      try { navigator.share({ text: String(t) }).catch((e) => { if (!e || e.name !== "AbortError") copy(t); }); } catch (e) { copy(t); }
+    }
+    // 結果の画面のボタン（#toX・#toLine・#copy・#share）をつなぐ。無いボタンは飛ばす
+    function wire(t, root) {
+      const r = root || doc, q = (id) => (r.querySelector ? r.querySelector("#" + id) : null), l = links(t);
+      const x = q("toX"), ln = q("toLine"), c = q("copy"), s = q("share");
+      if (x) { x.href = l.x; x.target = "_blank"; x.rel = "noopener"; }
+      if (ln) { ln.href = l.line; ln.target = "_blank"; ln.rel = "noopener"; }
+      if (c) c.onclick = () => copy(t);
+      if (s) s.onclick = () => send(t);
+    }
+    function css() {
+      if (doc.getElementById("core-share-css")) return;
+      const s = doc.createElement("style");
+      s.id = "core-share-css";
+      s.textContent = "#core-share{box-sizing:border-box;width:min(360px,calc(100vw - 32px));padding:16px;border:0;border-radius:16px;background:#1d2320;color:#fff;font:600 16px/1.55 system-ui,sans-serif;box-shadow:0 8px 24px #0006}"
+        + "#core-share::backdrop{background:#0008}#core-share h2{margin:0 0 4px;font-size:18px}#core-share p{margin:0 0 12px;font-size:14px;font-weight:400;white-space:pre-wrap;word-break:break-all;opacity:.9}"
+        + "#core-share .core-share-row{display:grid;gap:8px}"
+        + "#core-share a,#core-share button{box-sizing:border-box;display:flex;align-items:center;justify-content:center;min-height:44px;padding:0 14px;border-radius:10px;border:2px solid #fff;background:#fff;color:#1d2320;font:700 15px/1.2 system-ui,sans-serif;text-decoration:none;cursor:pointer}"
+        + "#core-share .core-share-close{background:transparent;color:#fff}";
+      (doc.head || doc.documentElement).appendChild(s);
+    }
+    // 共有の窓。t を渡さなければ、ゲームそのもの（名前と URL）を共有する
+    function open(t) {
+      t = tagged(t == null ? gameText() : String(t));
+      css();
+      let d = doc.getElementById("core-share");
+      if (d) d.remove();
+      d = doc.createElement("dialog");
+      d.id = "core-share"; d.setAttribute("aria-labelledby", "core-share-h");
+      const l = links(t);
+      d.innerHTML = `<h2 id="core-share-h">共有する</h2><p>${esc(t)}</p><div class="core-share-row">`
+        + (navigator.share ? '<button type="button" class="core-share-send">スマホの共有メニュー</button>' : "")
+        + `<a class="core-share-x" href="${esc(l.x)}" target="_blank" rel="noopener">Xで投稿</a>`
+        + `<a class="core-share-line" href="${esc(l.line)}" target="_blank" rel="noopener">LINEで送る</a>`
+        + '<button type="button" class="core-share-copy">文とリンクをコピー</button>'
+        + '<button type="button" class="core-share-close">閉じる</button></div>';
+      (doc.body || doc.documentElement).appendChild(d);
+      const b = (c) => d.querySelector("." + c);
+      if (b("core-share-send")) b("core-share-send").onclick = () => send(t);
+      b("core-share-copy").onclick = () => copy(t);
+      b("core-share-close").onclick = () => d.close();
+      d.addEventListener("close", () => d.remove());
+      try { d.showModal(); } catch (e) { d.setAttribute("open", ""); }
+    }
+    // data-share を付けた所を押したら共有の窓を開く（data-share に文があればその文、無ければゲームそのもの）
+    if (doc.addEventListener) doc.addEventListener("click", (e) => {
+      const a = e.target && e.target.closest ? e.target.closest("[data-share]") : null;
+      if (!a) return;
+      e.preventDefault();
+      open(a.getAttribute("data-share") || null);
+    });
+    return { url, name, tags, tagged, links, copy, send, wire, open };
+  })();
+
   // ---- 感想・不具合のフォーム（全ゲームで1つの Googleフォーム。事前入力のリンクでゲーム名と付属情報を入れる）----
   // 送る人が入力するのは「内容」の1か所だけ（必須はそれだけ）。名前・メール・遊んだ記録の中身は入れない。
   // 付属情報はフォームに見える形で入り、送る前に本人が消せる。フォームの entry 番号は Googleフォームの「事前入力した URL を取得」で確かめたもの
@@ -861,7 +1106,9 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
     return `${FORM}?${p.toString()}`;
   }
   // href を押したその時の情報で作り直す（data-feedback="fun|bug|data|wish" を付けた a）。開く前に作るので、画面の大きさ・最後のエラーが新しい
+  let fbBound = false;
   function bindFeedback(o) {
+    fbBound = true;
     doc.addEventListener("click", (e) => {
       const a = e.target && e.target.closest ? e.target.closest("a[data-feedback]") : null;
       if (!a) return;
@@ -938,7 +1185,18 @@ html.a11y-say body{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))!i
   // ゲームが遊び方の窓を後から作ることがあるので、読み終えてから置く
   if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", () => setTimeout(help, 0)); else setTimeout(help, 0);
 
-  window.Core = { v: 7, calm, esc, num, jstNow, today, addDays, prevDay, nextDay, md, dayNo, ymOf, ymAdd, untilNext, streak, say, toast, buzz, saveWarn, coach, feedbackUrl, feedbackInfo, bindFeedback, screens, help: helpOpen, errBar, kofi, KOFI };
+  // bindFeedback を呼ばないゲーム（形のちがうゲームに sync-template が「感想・質問を送る」を足した所）でも、data-feedback を押せばフォームへ。
+  // a でないもの（button）は新しいタブで開く
+  if (doc.addEventListener) doc.addEventListener("click", (e) => {
+    const a = e.target && e.target.closest ? e.target.closest("[data-feedback]") : null;
+    if (!a || (fbBound && a.tagName === "A")) return; // a は bindFeedback が作る（ゲームの付属情報が入る）
+    const u = feedbackUrl({ kind: a.getAttribute("data-feedback") || "fun" });
+    if (a.tagName === "A") { a.href = u; a.target = "_blank"; a.rel = "noopener"; return; }
+    e.preventDefault();
+    try { window.open(u, "_blank", "noopener"); } catch (err) { /* 開けない */ }
+  }, true);
+
+  window.Core = { v: 8, calm, esc, num, jstNow, today, addDays, prevDay, nextDay, md, dayNo, ymOf, ymAdd, untilNext, streak, say, toast, buzz, saveWarn, coach, feedbackUrl, feedbackInfo, bindFeedback, screens, help: helpOpen, errBar, kofi, KOFI, share };
 })();
 </script>
 <!-- core:end -->
@@ -1138,7 +1396,7 @@ footer [data-kiroku-open]{min-height:44px;min-width:44px;display:inline-flex;ali
   <footer>
     <p>条文は「<a href="https://satou-aaaaa.github.io/tenbin/">天秤の書</a>」の照合済みの問題と、e-Gov 法令検索の条文で確かめ、短く言い換えたものです。記録はこの端末のブラウザにだけ残ります。法律相談ではありません。</p>
     <p><a href="classic.html">前の版（夜の村で見分ける）</a></p>
-    <p><a href="#" data-hk>記録の引き継ぎ（別の端末へ移す）</a></p>
+    <p><a href="#" data-hk>記録の引き継ぎ（別の端末へ移す）</a></p><p><a href="#" data-share>このゲームを共有</a></p><p><a href="#" data-feedback="fun">感想・質問を送る</a></p>
     <p class="support">気に入ったら <a id="kofi" href="https://ko-fi.com/satouaaaaa" target="_blank" rel="noopener noreferrer">Ko-fi で応援する</a>（任意・遊ぶのは無料のまま）</p>
   </footer>
 </div>
