@@ -347,8 +347,11 @@ export async function checkTransfer({ browser, url, game, sample, check, open })
   await pd.waitForSelector("#hk-yes");
   await Promise.all([pd.waitForEvent("load"), pd.click("#hk-yes")]);
   await pd.waitForTimeout(300);
-  await old.evaluate((kv) => { try { localStorage.setItem(kv[0], kv[1]); } catch (e) { /* なし */ } }, [firstKey, before[firstKey]]).catch(() => {});
+  // 保存を試す前に、試した印を sessionStorage（読み直しても残る）に書く。外の catch が evaluate の失敗を隠しても、試していないのに通らないように（kawagoe-1day #1 の CodeRabbit）
+  await old.evaluate((kv) => { sessionStorage.setItem("hk-qa-tried", "1"); try { localStorage.setItem(kv[0], kv[1]); } catch (e) { /* なし */ } }, [firstKey, before[firstKey]]).catch(() => {});
+  await old.waitForLoadState("load").catch(() => {});
   await old.waitForTimeout(300);
+  check("引き継ぎ：入れ替えの前に開いたタブで、古い記録の保存を試した", (await old.evaluate(() => sessionStorage.getItem("hk-qa-tried")).catch(() => null)) === "1");
   check("引き継ぎ：入れ替えの前に開いたタブは、古い記録で上書きしない", JSON.stringify(await dump(pd)) === want, JSON.stringify(await dump(pd)).slice(0, 80));
   // 古いタブの保存を捨てたときは、帯で知らせる（読み直しが遅れても、黙って記録が消えない。版11、meirei-narabe #4 の CodeRabbit）
   const old2 = watch(await D.newPage());
