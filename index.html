@@ -233,7 +233,7 @@ html.a11y-cvd .slot.out{border-width:2px}
 /* all:unset のボタンでも、キーで選んだときの枠を必ず出す（いちばん最後に強く書く） */
 :is(.btn,.w,.card,.spine,.none,.shiori,button,a):focus-visible{outline:3px solid #fff!important;outline-offset:3px}
 </style>
-<!-- a11y:begin 見やすさの設定 v10（shared-workflows template/a11y/a11y.html の写し。ここでは直さず、ひな形を直して全部のゲームへ写す。drift-check と qa/a11y.mjs が同じ中身か見る） -->
+<!-- a11y:begin 見やすさの設定 v11（shared-workflows template/a11y/a11y.html の写し。ここでは直さず、ひな形を直して全部のゲームへ写す。drift-check と qa/a11y.mjs が同じ中身か見る） -->
 <style id="a11y-css">
 /* だれでも：キーボードで選んだ所に太い枠（WCAG 2.4.7・2.4.13） */
 :is(button,a,input,select,textarea,summary,[tabindex]):focus-visible{outline:3px solid #1a5fd0!important;outline-offset:2px!important;box-shadow:0 0 0 5px #fff!important}
@@ -339,7 +339,7 @@ html.a11y-dark :is(button,a,input,select,textarea,summary,[tabindex]):focus-visi
   const get = (k) => { const c = CH[k]; if (!c) return on(k); const v = S[k]; return c[3].some(([x]) => x === v) ? v : k === "fs" ? oldFs() : c[4]; };
   // 前のゲームごとの文字の大きさ（1〜3）を引き継ぐ。共通の設定をまだ選んでいなければ、その値（無ければゲームの既定の値）を使う
   let fsKey = null, fsDef = 2;
-  const oldFs = () => { if (fsKey) { try { const v = +localStorage.getItem(fsKey); if (v >= 1 && v <= 3) return v; } catch { /* 読めない */ } } return fsDef; };
+  const oldFs = () => { if (fsKey) { try { const v = +localStorage.getItem(fsKey); if (v === 1 || v === 2 || v === 3) return v; } catch { /* 読めない */ } } return fsDef; }; // 1・2・3 だけ（2.5 などは既定の値。v11、kusuri-yomi の QA）
   const fs = () => get("fs");
   // ゲームから一度だけ：A11y.fsFrom("〇〇-fs", 既定の値)。前のキーを覚えて、今の大きさを効かせ、その値を返す
   const fsFrom = (k, d) => { fsKey = k || null; fsDef = d === 1 || d === 3 ? d : 2; applyFs(); return fs(); };
@@ -632,7 +632,7 @@ html.a11y-dark :is(button,a,input,select,textarea,summary,[tabindex]):focus-visi
 // ゲームの共通部品 game-core。ひな形: satou-aaaaa/shared-workflows の template/core/core.js。
 // ゲームでは直さない。index.html の core:begin〜core:end の印のあいだに node scripts/sync-template.mjs <ゲームのフォルダ> で写す
 // （ファイルを足さないので sw.js の SHELL は変えない）。ゲームからは window.Core で使う。
-// 共通部品の版: 8
+// 共通部品の版: 9
 //   1: 2026-11-21 ゲームごとに手で写していた小さな関数を1か所に集めた。40本で同じ役目の関数が何通りにも分かれ
 //      （お知らせの帯 11通り・振動 10通り・文字を安全にする esc 4通り・数の読み込み num 2通り）、
 //      「動きを減らす」でも振動する・お知らせが読み上げられない・num の直し（#410）が22本に届かない・esc が " を変えない、が起きていた
@@ -658,6 +658,10 @@ html.a11y-dark :is(button,a,input,select,textarea,summary,[tabindex]):focus-visi
 //      （developers.line.biz「LINE URLスキームでLINEの機能を使う」: https://line.me/R/share?text=）、端末の共有は Web Share API
 //      （MDN「Navigator: share()」: 押したその場でだけ呼ぶ・やめたら AbortError）。共有する文は公開の URL（? と # を外す）とゲームの名前・結果だけ
 //      （遊ぶ人の名前・引き継ぎの #hk=・記録の中身は入れない）。どれも押した人が自分で選んで進むリンクで、外へ勝手に送らない
+//   9: 2026-11-27 「？」を 44px の丸にし、いつも 52px 空けるのをやめた。ホームで重なるときだけ要るぶん空け、ほかの画面・空けられないホームでは重なるあいだ隠す。
+//      いつも空けると、1画面目に入れる決まりのあるゲーム（部首たしざん・かさね染め・星座つなぎ・切符10）の QA が落ちた
+//      （incidents/2026-11-27-help-button-pushed-content.md）
+//      Core.screens.route で「戻る」の前のスクロール位置をブラウザが当て直さないようにした（history.scrollRestoration = "manual"）
 // 決まり: 外へ通信しない。ゲームの関数の名前（toast・buzz など）は上書きしない（Core.toast などで呼ぶ）。
 (function () {
   "use strict";
@@ -951,6 +955,9 @@ html.a11y-dark :is(button,a,input,select,textarea,summary,[tabindex]):focus-visi
       if (all().length) return;
       for (const k of Object.keys(map || {})) if (typeof map[k] === "function") views.set(k, map[k]);
       // 何度呼んでもよい（ゲームの home() の最初で呼ぶ）。# を消すのは最初の1回だけ（開き直したらホームから。途中の回は続きから出る）
+      // 「戻る」で前の画面へ戻るとき（history.back）、ブラウザが前のスクロールの位置を後から当て直さないようにする。
+      // 当て直すと、ゲームが scrollTo(0, 0) したあとでホームが途中から出る（2026-11-27 しりとり最短。incidents/2026-11-27-help-button-pushed-content.md）
+      if (!homeFn) try { history.scrollRestoration = "manual"; } catch (e) { /* 古いブラウザ */ }
       if (!homeFn) { addEventListener("popstate", onPop); if (hashName() && !foreign()) try { history.replaceState(null, "", bare()); } catch (e) { /* 使えない */ } }
       homeFn = home;
     }
@@ -1125,8 +1132,11 @@ html.a11y-dark :is(button,a,input,select,textarea,summary,[tabindex]):focus-visi
   }
 
   // ---- 遊び方の「？」（全ゲームで同じ場所：ページのいちばん上の右。NN/g「Help and Documentation」：いつでも同じ所から開ける）----
-  // ページの上に 52px の場所を空けて置く（浮かせないので、押せる所を隠さない。routines/ui-rules.md U1）。
-  // 押すと、ゲームの openHow()（無ければフッターの #f-how、それも無ければ dialog#howto）を開く。遊び方の無いページには出さない。
+  // ページの上の右に 44px の丸い「？」を置く（浮かせない。ページと一緒に動く）。ホームで下の字や押せる所に重なるときは、よけるのに要るぶんだけ（56px まで）ページの上を空ける。
+  // 遊ぶ画面などホームでない画面と、空けると1画面目の押せる所が外へ出るホームでは、空けずにその画面のあいだだけ「？」を隠す
+  // （字や押す所を隠さない・1画面目のボタンを押し出さない。遊び方はフッターの「遊び方」からも開ける）。
+  // 版5は いつも 52px 空けていて、1画面目に入れる決まりのあるゲーム（4本）の QA が落ちた（版9。routines/ui-rules.md U1・U13）。
+  // 押すと、ゲームの openHow()（無ければ dialog#howto、それも無ければフッターの #f-how）を開く。遊び方の無いページには出さない。
   function helpOpen() {
     try {
       if (typeof window.openHow === "function") { window.openHow(); return true; }
@@ -1138,14 +1148,36 @@ html.a11y-dark :is(button,a,input,select,textarea,summary,[tabindex]):focus-visi
     return false;
   }
   const helpHas = () => typeof window.openHow === "function" || !!doc.getElementById("howto") || !!doc.getElementById("f-how");
+  // 「？」の下に、見えている字・押せる所があるか。あれば、それをよけるのに何 px 下げればよいかを返す（無ければ 0）。浮いた部品（fixed・sticky の吹き出し・帯）は数えない
+  function helpCovers(b) {
+    const a = b.getBoundingClientRect();
+    if (!a.width) return 0;
+    let need = 0;
+    const take = (r) => { need = Math.max(need, Math.ceil(a.bottom + 6 - r.top)); };
+    const hit = (r) => r.width > 0 && r.height > 0 && !(r.right <= a.left - 4 || r.left >= a.right + 4 || r.bottom <= a.top - 4 || r.top >= a.bottom + 4);
+    const floating = (el) => { for (let x = el; x && x !== doc.body; x = x.parentElement) { const p = getComputedStyle(x).position; if (p === "fixed" || p === "sticky") return x !== el || p === "fixed"; } return false; };
+    const seen = (el) => el && el !== b && !b.contains(el) && el.getClientRects().length && getComputedStyle(el).visibility !== "hidden" && !el.closest("dialog:not([open]),[hidden],[aria-hidden=true]") && !floating(el);
+    for (const el of doc.querySelectorAll("a[href],button,input,select,textarea,summary,[role=button],[tabindex]")) { const r = el.getBoundingClientRect(); if (hit(r) && seen(el)) take(r); }
+    const tw = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+    const rg = doc.createRange();
+    for (let n = tw.nextNode(); n; n = tw.nextNode()) {
+      if (!n.textContent.trim()) continue;
+      const el = n.parentElement;
+      if (!el || /SCRIPT|STYLE|NOSCRIPT/.test(el.tagName)) continue;
+      const er = el.getBoundingClientRect();
+      if (er.top > a.bottom + 4 || er.bottom < a.top - 4 || !seen(el)) continue;
+      rg.selectNodeContents(n);
+      for (const r of rg.getClientRects()) if (hit(r)) take(r);
+    }
+    return Math.min(56, Math.max(0, need));
+  }
   function help() {
     if (doc.getElementById("core-help") || !doc.body || !helpHas()) return;
     if (!doc.getElementById("core-help-css")) {
       const s = doc.createElement("style");
       s.id = "core-help-css";
-      s.textContent = "html.core-helpon{padding-top:52px}"
-        + "#core-help{position:absolute;top:4px;right:max(8px,env(safe-area-inset-right,0px));z-index:50;display:inline-flex;align-items:center;gap:4px;min-height:44px;min-width:44px;padding:0 12px;border-radius:22px;border:2px solid #1d2320;background:#fff;color:#1d2320;font:700 15px/1 system-ui,sans-serif;cursor:pointer}"
-        + "#core-help b{font-size:18px}"
+      s.textContent = "html.core-helpon{padding-top:var(--core-help-pad,52px)}#core-help.core-help-off{visibility:hidden;pointer-events:none}"
+        + "#core-help{position:absolute;top:4px;right:max(8px,env(safe-area-inset-right,0px));z-index:50;display:grid;place-items:center;box-sizing:border-box;width:44px;height:44px;padding:0;border-radius:50%;border:2px solid #1d2320;background:#fff;color:#1d2320;font:800 20px/1 system-ui,sans-serif;cursor:pointer}"
         + "html.a11y-dark #core-help{background:#22282a;color:#eceae4;border-color:#eceae4}"
         + "#core-err{margin:0;padding:8px 12px;background:#fff3cd;color:#000;border-bottom:2px solid #8a6d00;font:500 15px/1.5 system-ui,sans-serif}"
         + "#core-err p{margin:0 0 6px}#core-err .core-err-row{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}"
@@ -1153,11 +1185,46 @@ html.a11y-dark :is(button,a,input,select,textarea,summary,[tabindex]):focus-visi
       (doc.head || doc.documentElement).appendChild(s);
     }
     const b = doc.createElement("button");
-    b.type = "button"; b.id = "core-help"; b.setAttribute("aria-label", "遊び方");
-    b.innerHTML = "<b aria-hidden=\"true\">？</b><span aria-hidden=\"true\">遊び方</span>";
+    b.type = "button"; b.id = "core-help"; b.setAttribute("aria-label", "遊び方"); b.title = "遊び方";
+    b.innerHTML = "<span aria-hidden=\"true\">？</span>";
     b.addEventListener("click", helpOpen);
     doc.body.appendChild(b);
-    doc.documentElement.classList.add("core-helpon");
+    // 場所を空けるのはホーム（URL に # の無い画面）だけ。遊ぶ画面・結果の画面（#play など）では空けず、重なれば隠す。
+    // 遊んでいる途中で空けたり戻したりすると、ゲームが動かしたスクロールの行き先がずれて「次へ」が画面の外に出る（かさね染め。2026-11-27）。
+    // ホームでも、空けると1画面目に入っている押せる所が外へ出るなら空けずに隠す（星座つなぎ）
+    const root = doc.documentElement;
+    const ctl = () => [...doc.querySelectorAll("a[href],button,input,select,textarea,summary,[role=button]")].filter((e) => e !== b && e.getClientRects().length && !e.closest("dialog:not([open]),[hidden]") && getComputedStyle(e).position !== "fixed");
+    const isHome = () => !location.hash || location.hash === "#";
+    let queued = false;
+    const padHome = () => {
+      let pad = false;
+      try {
+        root.classList.remove("core-helpon");
+        const need = helpCovers(b);
+        if (need > 0) {
+          const inside = ctl().filter((e) => { const r = e.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; });
+          root.style.setProperty("--core-help-pad", need + "px");
+          root.classList.add("core-helpon");
+          pad = inside.every((e) => e.getBoundingClientRect().bottom <= innerHeight);
+        }
+      } catch (e) { /* 測れないときは空けない */ }
+      root.classList.toggle("core-helpon", pad);
+    };
+    const fit = () => {
+      queued = false;
+      if (!isHome()) root.classList.remove("core-helpon");
+      else if (scrollY <= 8) padHome();
+      let off = true;
+      try { off = helpCovers(b) > 0; } catch (e) { /* 測れないときは隠す */ }
+      if (b.classList.contains("core-help-off") !== off) b.classList.toggle("core-help-off", off);
+    };
+    const later = () => { if (!queued) { queued = true; requestAnimationFrame(fit); } };
+    const mo = new MutationObserver((list) => { if (list.some((m) => m.target !== b)) later(); });
+    mo.observe(doc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "hidden", "style", "open"] });
+    addEventListener("resize", later);
+    addEventListener("hashchange", later);
+    addEventListener("popstate", later);
+    fit();
   }
 
   // ---- 止まるような不具合の帯（本人が押したときだけ知らせる）----
@@ -1203,7 +1270,7 @@ html.a11y-dark :is(button,a,input,select,textarea,summary,[tabindex]):focus-visi
     try { window.open(u, "_blank", "noopener"); } catch (err) { /* 開けない */ }
   }, true);
 
-  window.Core = { v: 8, calm, esc, num, jstNow, today, addDays, prevDay, nextDay, md, dayNo, ymOf, ymAdd, untilNext, streak, say, toast, buzz, saveWarn, coach, feedbackUrl, feedbackInfo, bindFeedback, screens, help: helpOpen, errBar, kofi, KOFI, share };
+  window.Core = { v: 9, calm, esc, num, jstNow, today, addDays, prevDay, nextDay, md, dayNo, ymOf, ymAdd, untilNext, streak, say, toast, buzz, saveWarn, coach, feedbackUrl, feedbackInfo, bindFeedback, screens, help: helpOpen, errBar, kofi, KOFI, share };
 })();
 </script>
 <!-- core:end -->
