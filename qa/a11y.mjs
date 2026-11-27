@@ -3,7 +3,7 @@
 // 見ること（出典は shared-workflows routines/game-dev.md「だれでも遊べるように」）:
 //   1. 見やすさの設定（template/a11y/a11y.html）がひな形と同じ中身で入り、開くボタンがホームに見えている
 //   2. lang="ja"・拡大を禁じない（WCAG 1.4.4）
-//   3. 文字のコントラスト 4.5:1（大きい字は 3:1）。ふつう・全部の設定を入れたときの両方（WCAG 1.4.3）
+//   3. 文字のコントラスト 4.5:1（大きい字は 3:1）。ふつう・全部の設定を入れたとき・暗い画面の3つ（WCAG 1.4.3）
 //   4. 字間・行間を広げても横にはみ出さない・字が切れない（WCAG 1.4.12・1.4.10。幅320px）
 //   5. 動きを減らす設定（端末の「視差効果を減らす」）で、動き続けるアニメーションが無い（WCAG 2.3.3）
 //   6. キーボード（Tab）で選んだ所に枠が見える（WCAG 2.4.7）・名前の無いボタンや絵が無い（WCAG 4.1.2・1.1.1）
@@ -160,7 +160,8 @@ const contrastFn = (skip) => {
   }
   return { bad, measured, skipped };
 };
-for (const [label, settings] of [["ふつう", null], ["設定を全部入れた", ALL_ON]]) {
+// 暗い画面（見やすさの設定 v10 の「画面の明るさ：暗い」）でも、字の濃さ・ずれ・エラーを見る
+for (const [label, settings] of [["ふつう", null], ["設定を全部入れた", ALL_ON], ["暗い画面", { theme: 2 }]]) {
   for (const sc of screens) {
     const { ctx, page, errors } = await openPage({ settings });
     try {
@@ -173,7 +174,7 @@ for (const [label, settings] of [["ふつう", null], ["設定を全部入れた
       check(`設定の印で画面がずれない・横にはみ出さない：${sc.name}・${label}`, lay.pos === "static" && !lay.wide && lay.left >= 0, JSON.stringify(lay));
       if (settings) {
         // 押して進んだあとも設定の印が html に残っているか（ゲームが className を書き換えると消える）
-        const lost = await page.evaluate((keys) => keys.filter((k) => !document.documentElement.classList.contains("a11y-" + k)), Object.keys(settings).filter((k) => k !== "ruby"));
+        const lost = await page.evaluate((keys) => keys.filter((k) => !document.documentElement.classList.contains("a11y-" + k)), Object.keys(settings).filter((k) => k !== "ruby").map((k) => (k === "theme" ? "dark" : k)));
         check(`操作のあとも設定の印（html の a11y- の class）が残る：${sc.name}`, lost.length === 0, lost.length ? `消えた: ${lost.join(",")}` : "");
         // 「🔊 読む」で読む文があるか（data-a11y-say、無ければ見出し・知らせの場所。どちらも無いと押しても設定の画面が開くだけ）
         const says = await page.evaluate(() => { const vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== "hidden" && !el.closest("[hidden],[aria-hidden=true],[inert]") && (el.getAttribute("aria-label") || el.innerText || "").trim(); }; return { say: [...document.querySelectorAll("[data-a11y-say]")].filter(vis).length, head: [...document.querySelectorAll("h1,h2,[role=status],[aria-live]")].filter(vis).length }; });
