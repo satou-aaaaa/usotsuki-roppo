@@ -1,5 +1,5 @@
 // 引き継ぎコード（transfer.js）：このゲームの記録を「コード」と「QR」にして、別の端末へ移す。サーバーは使わない。
-// 引き継ぎの版: 14
+// 引き継ぎの版: 15
 // 正：satou-aaaaa/shared-workflows の template/transfer.js（各ゲームはこれをそのまま写す。直すときはひな形を直して配り、版を上げる）
 // 使い方（index.html の <head> の中、ゲームの script より前に、defer を付けずに置く）:
 //   <script src="transfer.js" data-game="kippu-10" data-keys="kippu-v1"></script>
@@ -45,6 +45,11 @@
 //   - 版14（2026-11-21）: QR を作る部品（約 65KB）を transfer-qr.js に分け、箱を開いたときにだけ読む。transfer.js はゲームの前に
 //     すぐ読む（取り込みをゲームより先に書くため）ので、毎回の表示を止める量を減らす（Chrome Lighthouse「Eliminate render-blocking resources」）。
 //     QR の部品を読めない（電波が無く保存もしていない）ときは、QR だけ出さずにコードで渡せるようにする。
+//   - 版15（2026-11-27 kawagoe-1day #1 の CodeRabbit。shared-workflows incidents/2026-11-27-transfer-midswap-tab.md）:
+//     入れ替えの番号は、書き換えの前（…​.w）と、書き換え終わったあと（…​.d）の2回進める。書き換えの途中で開いたタブは
+//     新しい番号と古い記録を持つので、終わったあとの番号で古いタブとして扱う（前は古い記録で取り込んだ記録を上書きできた）・
+//     止まったあとに遊んだ記録など、戻す先とちがういまの記録を控えにするときは、戻す前に別のキー（hk-next:<ゲーム>）に書く。
+//     書けなければ戻さない（控えを書けず元にも戻せないと、いまの記録がメモリにしか無く消えていた）。readBackup はこれも控えとして出す。
 (function () {
   "use strict";
   var VERSION = 4; // コードの形の版（形を変えたときだけ上げる。上の「引き継ぎの版」とは別）
@@ -57,6 +62,7 @@
   var DONE = "hk-done:" + GAME;
   var SYNC = "hk-sync:" + GAME; // 入れ替えたことをほかのタブへ知らせる印・入れ替えの番号（記録には入れない）
   var PREV = "hk-prev:" + GAME; // 控えに戻す途中だけ置く、戻す前の記録（版10）
+  var NEXT = "hk-next:" + GAME; // 控えに戻す途中だけ置く、戻す先とちがういまの記録（戻す前に書く。版15）
   var PREVFP = "hk-prevfp:" + GAME; // 控えに戻す途中で止まったときの記録の印（そのあと記録が変わったかを見る。版11）
   var RACE = "hk-race:" + GAME + ":"; // 入れ替えと古いタブの保存が重なったときの印。後ろにその入れ替えの番号を付け、番号ごとに別のキーにする（古い印を消すときに新しい印を消さない。版13）
   var RACE_TEXT = "記録を入れ替えた直後に、別の画面が前の記録を保存しました。記録が混ざったかもしれません。もう一度取り込むか、「控えに戻す」で入れ替える前の記録に戻してください。";
@@ -173,11 +179,15 @@
   }
   // 控えに戻す途中で止まったときは、戻す前の記録（PREV）を控えとして出す（それがただ1つの写し。版10）
   // 両方あるときは新しいほう（止まったあとに別の記録を取り込んだら、その取り込みの前の記録へ戻す。版11、akushitsu-miyaburi #4 の CodeRabbit）
+  // 戻す途中で止まって残った、戻す前のいまの記録（NEXT）も同じく出す（版15）
   function readBackup() {
-    var p = readKey(PREV), b = readKey(BACKUP);
-    if (!p || !b) return p || b;
-    var tp = Date.parse(p.at) || 0, tb = Date.parse(b.at) || 0;
-    return tb > tp ? b : p;
+    var best = null, bt = -1;
+    [readKey(PREV), readKey(BACKUP), readKey(NEXT)].forEach(function (b) {
+      if (!b) return;
+      var t = Date.parse(b.at) || 0;
+      if (t > bt) { best = b; bt = t; }
+    });
+    return best;
   }
   function syncNo() { try { return localStorage.getItem(SYNC) || ""; } catch (e) { return ""; } }
   // 記録の印（キーの順によらない）。途中で止まったあとに記録が変わったかを見る（版11）
@@ -370,7 +380,9 @@
       var swapped = false;
       // 入れ替える前に番号を進める。前の番号で開いたタブは、ここから先ゲームの保存を書かない（watchSaves）。
       // 書けなければ入れ替えない（古いタブが、取り込んだ記録を手元の古い記録で上書きしうる。版10、#252 の CodeRabbit）
-      var mySync = String(Date.now()) + "." + Math.random().toString(36).slice(2);
+      // 書き換えの前は「.w」、終わったら同じ長さの「.d」にする（書き換えの途中で開いたタブは .w を持つので、終わったあとは古いタブになる。版15）
+      var syncBase = String(Date.now()) + "." + (Math.random().toString(36) + "00000000").slice(2, 10);
+      var mySync = syncBase + ".w";
       localStorage.setItem(SYNC, mySync);
       // 控えにする記録は、番号を進めて古いタブの保存を止めてから読む（前に読むと、そのあいだの保存が控えに入らずに消える。版13、hatsuden-kurabe #1 の CodeRabbit）
       var cur = snapshot();
@@ -393,8 +405,26 @@
         if (toHeld) { var was = null; try { was = localStorage.getItem(PREVFP); } catch (e) { /* なし */ } moved = was != null && was !== fp(cur); }
         // 残った記録とはちがう控え（そのあと取り込んだ記録の控え）へ戻すときも、いまの記録を控えにする（版11）
         var mine = moved || (heldB && !toHeld) ? JSON.stringify({ at: new Date().toISOString(), d: cur }) : stamp;
+        // いまの記録（mine）を控えにするなら、戻す前に NEXT に書く。書けなければ戻さない
+        // （戻したあと控えを書けず、元にも戻せないと、いまの記録がメモリにしか無く消える。版15、kawagoe-1day #1 の CodeRabbit）
+        // 印が無く（止まったときに書けなかった）控えを上書きしない回も、いまの記録はあとから遊んだ分かもしれないので NEXT に残す（控えにはしない）
+        var unsure = toHeld && !moved && was == null && !same(cur, job.d);
+        var wroteNext = false;
+        if (mine !== stamp || unsure) {
+          var nextB = readKey(NEXT);
+          if (!nextB || same(nextB.d, cur)) {
+            if (!nextB) { localStorage.setItem(NEXT, JSON.stringify({ at: new Date().toISOString(), d: cur })); wroteNext = true; }
+          } else {
+            // 前に途中で止まって残った NEXT は、それがただ1つの写しかもしれないので上書きしない。
+            // NEXT へ戻すところで、いまの記録が止まったときのまま（遊んでいない）なら、いまの記録は残さなくてよい
+            var wasN = null; try { wasN = localStorage.getItem(PREVFP); } catch (e) { /* なし */ }
+            if (!(same(nextB.d, job.d) && wasN != null && wasN === fp(cur))) throw new Error("hk-next が残っている");
+          }
+        }
+        var dropNext = function () { if (wroteNext) { try { localStorage.removeItem(NEXT); } catch (e) { /* なし */ } } };
         try { replaceAll(job.d); } catch (e) {
           partial = e.rolledBack === false;
+          if (!partial) dropNext();
           if (!partial && held == null) { try { localStorage.removeItem(PREV); } catch (e2) { /* なし */ } }
           // 途中で止まったときの記録の印を残す（そのあと記録が変わったら、戻すときにその記録を控えにする。版11）
           if (partial) { try { localStorage.setItem(PREVFP, fp(snapshot())); } catch (e3) { /* なし */ } }
@@ -413,11 +443,15 @@
               throw e2;
             }
             swapped = false;
+            dropNext();
             if (held == null) { try { localStorage.removeItem(PREV); } catch (e3) { /* なし */ } }
             throw e;
           }
         }
-        try { localStorage.removeItem(PREV); localStorage.removeItem(PREVFP); } catch (e) { /* なし */ }
+        // 前に止まって残った NEXT は、戻した記録か控えと同じときだけ消す。ちがえば残す（ただ1つの写しかもしれない。readBackup が控えとして出す。版15）
+        var nx = readKey(NEXT), bk = readKey(BACKUP);
+        var nextDone = !nx || same(nx.d, job.d) || (!!bk && same(nx.d, bk.d));
+        try { localStorage.removeItem(PREV); localStorage.removeItem(PREVFP); if (nextDone) localStorage.removeItem(NEXT); } catch (e) { /* なし */ }
       } else {
         // 先にいまの記録を控えに残す（空なら控えは作らない。前の控えも消さない）。控えを書けなければ入れ替えない
         var prev = localStorage.getItem(BACKUP);
@@ -428,6 +462,7 @@
           try { if (prev == null) localStorage.removeItem(BACKUP); else localStorage.setItem(BACKUP, prev); } catch (e2) { /* なし */ }
           throw e;
         }
+        swapped = true;
       }
       msg = job.undo ? "取り込む前の記録に戻しました" : "記録を引き継ぎました";
       // ほかのタブへの知らせは、上で進めた番号の storage イベント（古いタブは読み直す。版7）
@@ -438,6 +473,11 @@
       // ほかのタブがそのあと番号を進めていたら、戻さない（戻すと、そのタブの入れ替えの前に開いた古いタブが保存できてしまう。版11）
       if (!swapped && typeof oldSync !== "undefined" && typeof mySync !== "undefined") { try { if (localStorage.getItem(SYNC) === mySync) { if (oldSync == null) localStorage.removeItem(SYNC); else localStorage.setItem(SYNC, oldSync); } } catch (e4) { /* なし */ } }
       msg = partial ? "途中で止まりました（端末の空きが足りないかもしれません）。「引き継ぎ」の「控えに戻す」で前の記録に戻せます" : "引き継げませんでした（端末の空きが足りないかもしれません）。記録は元のままです";
+    }
+    // 記録を（途中までも）書き換えたら、番号を書き換え終わりの印（.d）にする。書き換えの途中で開いたタブ（.w を持ち、古い記録を読んだかもしれない）は、
+    // ここから先は古いタブとして保存を書かずに読み直す（版15、kawagoe-1day #1 の CodeRabbit）。同じ長さの値なので、空きが無くても書ける見込みが高い
+    if (typeof swapped !== "undefined" && swapped && typeof syncBase !== "undefined") {
+      try { if (localStorage.getItem(SYNC) === syncBase + ".w") localStorage.setItem(SYNC, syncBase + ".d"); } catch (e) { msg += "。ほかの画面でこのゲームを開いていたら、読み直してから遊んでください"; }
     }
     // u：知らせに「控えに戻す」を付ける（取り込んだ記録の形でゲームが動かなくても、ここから戻せるように。版4）
     try { sessionStorage.setItem(DONE, JSON.stringify({ m: msg, u: undo })); } catch (e) { /* なし */ }
